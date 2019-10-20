@@ -38,7 +38,7 @@ function decrypt(str, secret) {
 
 
 // Get Home Page
-router.route('/').get(function (req, res, next) {
+router.route('/').all(LoginFirst).all(Logined).get(function (req, res, next) {
     if(!dev.multiPlayer){
 	   return res.redirect('/visitor');
     }
@@ -127,12 +127,12 @@ router.route('/visitor').get(function (req, res) {
             }
         });
     } else {
-        UserModel.find({}, function (err, docs) {
+        UserModel.find(function (err, docs) {
             if (err) {
                 console.log(err);
             } else {
                 if (docs) {
-                    var index = docs.length;
+                    let index = docs.length > 0 ? docs[docs.length-1].userid + 1: docs.length;
                     let operation = {
                         userid: index,
                         username: 'Visitor#' + index,
@@ -184,7 +184,7 @@ router.route('/register').all(Logined).get(function (req, res) {
             console.log(err);
         } else {
             if (docs) {
-                var index = docs.length;
+                let index = docs.length > 0 ? docs[docs.length-1].userid + 1: docs.length;
                 //准备添加到数据库的数据（数组格式）
                 let operation = {
                     userid: index,
@@ -240,7 +240,9 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
         _id: 0,
         username: 1,
         avatar: 1,
-        admin: 1
+        admin: 1,
+        total_score: 1,
+        round_attend: 1,
     };
     UserModel.findOne(selectStr, fields, function (err, doc) {
         if (err) {
@@ -252,6 +254,8 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
                     title: 'Home',
                     username: doc.username,
                     admin: doc.admin,
+                    total_score: doc.total_score || 0,
+                    round_attend: doc.round_attend || 0,
                     multiPlayer: dev.multiPlayer,
                     multiPlayerServer: dev.multiPlayerServer,
                     singlePlayerServer: dev.singlePlayerServer,
@@ -260,6 +264,7 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
         }
     });
 });
+
 
 router.route('/puzzle').all(LoginFirst).get(function (req, res) {
     let roundID = req.query.roundID;
@@ -283,6 +288,9 @@ router.route('/puzzle').all(LoginFirst).get(function (req, res) {
                 shape: round.shape,
                 edge: round.edge,
                 border: round.border,
+                official: round.official || false,
+                forceLeaveEnable: round.forceLeaveEnable || false,
+                algorithm: round.algorithm,
                 tilesPerRow: round.tilesPerRow,
                 tilesPerColumn: round.tilesPerColumn,
                 imageWidth: round.imageWidth,
@@ -310,6 +318,9 @@ router.route('/puzzle').all(LoginFirst).get(function (req, res) {
                             shape: round.shape,
                             edge: round.edge,
                             border: round.border,
+                            official: round.official || false,
+                            forceLeaveEnable: round.forceLeaveEnable || false,
+                            algorithm: round.algorithm,
                             tilesPerRow: round.tilesPerRow,
                             tilesPerColumn: round.tilesPerColumn,
                             imageWidth: round.imageWidth,
@@ -455,80 +466,87 @@ router.route('/settings').all(LoginFirst).get(function (req, res) {
 });
 
 // Get the rank of this round
-router.route('/roundrank/:round_id').all(LoginFirst).get(function (req, res) {
+router.route('/roundrank/:round_id').all(LoginFirst).get(async function (req, res) {
     let condition = {
         "round_id": req.params.round_id
     };
-    RecordModel.find(condition, function (err, records) {
+    RecordModel.find(condition, async function (err, records) {
         if (err) {
             console.log(err);
         } else if (records) {
             let redis_key = 'round:' + req.params.round_id;
-            redis.get(redis_key, function(err, round_json) {
-                if (err) {
-                    console.log(err);
-                } else if (round_json) {
-                    let round = JSON.parse(round_json);
-                    let puzzle_links = 2 * round.tilesPerColumn * round.tilesPerRow - round.tilesPerColumn - round.tilesPerRow;
-                    let finished = new Array();
-                    let unfinished = new Array();
-                    for (let r of records) {
-                        let hintPercent = 0;
-                        let correctPercent = 0;
-                        let finishPercent = 0;
-                        if (r.hinted_tiles != -1 && r.total_tiles != -1 && r.total_tiles > 0 && r.hinted_tiles > 0) {
-                            hintPercent = r.hinted_tiles / r.total_tiles * 100;
-                        }
-                        if (r.total_hints > 0 && r.correct_hints != -1 && hintPercent > 0) {
-                            correctPercent = r.correct_hints / r.total_hints * 100;
-                        }
-                        if (r.total_links > 0 && r.correct_links != -1) {
-                            finishPercent = (r.correct_links / 2) / puzzle_links * 100;
-                        }
-                        if (r.end_time != "-1") {
-                            finished.push({
-                                "playername": r.username,
-                                "time": r.time,
-                                "steps": r.steps,
-                                "hintPercent": hintPercent.toFixed(3),
-                                "finishPercent": finishPercent.toFixed(3),
-                                "correctPercent": correctPercent.toFixed(3),
-                                "rating": r.rating,
-                                "score": r.score,
-                                "create_correct_link": r.create_correct_link,
-                                "remove_correct_link": r.remove_correct_link,
-                                "create_wrong_link": r.create_wrong_link,
-                                "remove_wrong_link": r.remove_wrong_link,
-                                "remove_hinted_wrong_link": r.remove_hinted_wrong_link
-                            });
-                        } else {
-                            unfinished.push({
-                                "playername": r.username,
-                                "time": r.time,
-                                "steps": r.steps,
-                                "hintPercent": hintPercent.toFixed(3),
-                                "finishPercent": finishPercent.toFixed(3),
-                                "correctPercent": correctPercent.toFixed(3),
-                                "rating": r.rating,
-                                "score": r.score,
-                                "create_correct_link": r.create_correct_link,
-                                "remove_correct_link": r.remove_correct_link,
-                                "create_wrong_link": r.create_wrong_link,
-                                "remove_wrong_link": r.remove_wrong_link,
-                                "remove_hinted_wrong_link": r.remove_hinted_wrong_link
-                            });
-                        }
+            let round_json = await redis.getAsync(redis_key);
+            if(!round_json) {
+                RoundModel.findOne(condition, function(err, doc) {
+                    if (err) {
+                        console.log(err);
+                    } else if (doc) {
+                        redis.set(redis_key, JSON.stringify(doc));
+                        res.json({msg: "try again"});
                     }
-                    finished = finished.sort(util.ascending("time"));
-                    unfinished = unfinished.sort(util.descending("finishPercent"));
-                    res.render('roundrank', {
-                        title: 'Round Rank',
-                        Finished: finished,
-                        Unfinished: unfinished,
-                        username: req.session.user.username,
-                        round_id: req.params.round_id
+                });
+                return;
+            }
+            let round = JSON.parse(round_json);
+            //console.log(round, round.tilesPerColumn, round.tilesPerRow);
+            let puzzle_links = 2 * round.tilesPerColumn * round.tilesPerRow - round.tilesPerColumn - round.tilesPerRow;
+            let finished = new Array();
+            let unfinished = new Array();
+            for (let r of records) {
+                let hintPercent = 0;
+                let correctPercent = 0;
+                let finishPercent = 0;
+                if (r.hinted_steps != -1 && r.total_steps != -1 && r.total_steps > 0 && r.hinted_steps > 0) {
+                    hintPercent = r.hinted_steps / r.total_steps * 100;
+                }
+                if (r.total_hints > 0 && r.correct_hints != -1 && hintPercent > 0) {
+                    correctPercent = r.correct_hints / r.total_hints * 100;
+                }
+                if (r.total_links > 0 && r.correct_links != -1) {
+                    finishPercent = (r.correct_links / 2) / puzzle_links * 100;
+                }
+                if (r.end_time != "-1") {
+                    finished.push({
+                        "playername": r.username,
+                        "time": r.time,
+                        "steps": r.steps,
+                        "hintPercent": hintPercent.toFixed(3),
+                        "finishPercent": finishPercent.toFixed(3),
+                        "correctPercent": correctPercent.toFixed(3),
+                        "rating": r.rating,
+                        "score": r.score,
+                        "create_correct_link": r.create_correct_link,
+                        "remove_correct_link": r.remove_correct_link,
+                        "create_wrong_link": r.create_wrong_link,
+                        "remove_wrong_link": r.remove_wrong_link,
+                        "remove_hinted_wrong_link": r.remove_hinted_wrong_link
+                    });
+                } else {
+                    unfinished.push({
+                        "playername": r.username,
+                        "time": r.time,
+                        "steps": r.steps,
+                        "hintPercent": hintPercent.toFixed(3),
+                        "finishPercent": finishPercent.toFixed(3),
+                        "correctPercent": correctPercent.toFixed(3),
+                        "rating": r.rating,
+                        "score": r.score,
+                        "create_correct_link": r.create_correct_link,
+                        "remove_correct_link": r.remove_correct_link,
+                        "create_wrong_link": r.create_wrong_link,
+                        "remove_wrong_link": r.remove_wrong_link,
+                        "remove_hinted_wrong_link": r.remove_hinted_wrong_link
                     });
                 }
+            }
+            finished = finished.sort(util.ascending("time"));
+            unfinished = unfinished.sort(util.descending("finishPercent"));
+            res.render('roundrank', {
+                title: 'Round Rank',
+                Finished: finished,
+                Unfinished: unfinished,
+                username: req.session.user.username,
+                round_id: req.params.round_id
             });
         }
     });
@@ -551,10 +569,26 @@ router.route('/records').all(LoginFirst).get(function (req, res) {
                     resp.push(r);
                 }
             }
-            res.render('records', {
-                title: 'Ranks',
-                username: req.session.user.username,
-                Allrecords: resp
+            let fields = {
+                _id: 0,
+                total_score: 1,
+                round_attend: 1,
+            };
+            UserModel.findOne(condition, fields, function (err, doc) {
+                if (err) {
+                    console.log(err);
+                } else {
+                    if (doc) {
+                        req.session.error = 'Welcome! ' + req.session.user.username;
+                        res.render('records', {
+                            title: 'Records',
+                            username: req.session.user.username,
+                            total_score: doc.total_score || 0,
+                            round_attend: doc.round_attend || 0,
+                            Allrecords: resp
+                        });
+                    }
+                }
             });
         }
     });
@@ -602,6 +636,7 @@ router.route('/statistics').all(LoginFirst).get(function (req, res) {
         username: req.session.user.username
     });
 });
+
 // router.route('/award').all(LoginFirst).get(function (req, res) {
 //     res.render('award', {title: 'Award',username: req.session.user.username});
 // });

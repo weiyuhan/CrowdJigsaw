@@ -1,24 +1,28 @@
 var socket = io.connect(window.location.protocol + '//' + window.location.host + '/');
 
-//roundimageselector.js
 var puzzleImageSrcSet = new Set();
-//puzzleImageSrcSet.add("images/raw/starter_thumb.png");
-// only relatively simple images in random rounds
-var simpleImageSrcSet = new Set();
-//var puzzle_size;
-socket.on('simple_thumbnails', function (data) {
-    if (data.thumblist.length > 0) {
-        data.thumblist.forEach(function (item, index, input) {
-            simpleImageSrcSet.add(item.image_path);
-        });
-    }
-});
 socket.on('thumbnails', function (data) {
+    console.log(data);
     if (data.thumblist.length > 0) {
         data.thumblist.forEach(function (item, index, input) {
             puzzleImageSrcSet.add(item.image_path);
         });
         getSelectorImage();
+    }
+});
+
+socket.on('create_round_failed', function(data) {
+    if (data.username == username) {
+        $.amaran({
+            'title': data.title,
+            'message': data.msg,
+            'inEffect': 'slideRight',
+            'cssanimationOut': 'zoomOutUp',
+            'position': "top right",
+            'delay': 2000,
+            'closeOnClick': true,
+            'closeButton': true
+        });
     }
 });
 
@@ -76,7 +80,7 @@ socket.on('roundPlayersChanged', function (data) {
 // get the next page, and refresh the thumblist
 socket.on("refresh", function (data) {
     $('.more_images').parent().parent().remove();
-    puzzleImageSrcSet = new Set();
+    puzzleImageSrcSet.clear();
     if (data.thumblist.length > 0) {
         data.thumblist.forEach(function (item, index, input) {
             puzzleImageSrcSet.add(item.image_path);
@@ -99,24 +103,36 @@ var edgeCheckbox = $('#egde_checkbox_column');
 var newRoundCreateButton = $('#newround_createbutton');
 var newRoundCancelButton = $('#newround_cancelbutton');
 var selectImageDialog = $('#selectimage_dialog').get(0);
-var mySlider = $("#newround_number_slider").slider();
-var mySlider2 = $("#puzzle_size_slider").slider();
+var numSlider = $("#newround_number_slider").slider();
+var sizeSlider = $("#puzzle_size_slider").slider();
+var difficultSlider = $("#puzzle_difficult_slider").slider();
 var pageCount = 0;
 var theOnlyNewRoundDialog = false;
-var selected_puzzle_size = mySlider2.slider('getValue');
-socket.emit('puzzle_size_update', { puzzle_size: selected_puzzle_size });
-
-mySlider2.slider().on('change',function (event) {
+var selected_puzzle_size = sizeSlider.slider('getValue');
+var selected_puzzle_difficult = difficultSlider.slider('getValue');
+socket.emit('puzzle_size_update', { 
+    puzzle_size: selected_puzzle_size,
+    puzzle_difficult: selected_puzzle_difficult 
+});
+$('#newround_image_wrap').css('display', 'none');
+sizeSlider.slider().on('change',function (event) {
     selected_puzzle_size = event.value.newValue;
+    selected_puzzle_difficult = difficultSlider.slider('getValue');
+})
+
+difficultSlider.slider().on('change',function (event) {
+    selected_puzzle_size = sizeSlider.slider('getValue');
+    selected_puzzle_difficult = event.value.newValue;
     $('#selectimage_table').empty();
-    puzzleImageSrcSet = new Set();
+    puzzleImageSrcSet.clear();
     pageCount=0;
     imgReadyCount=0;
-    socket.emit('puzzle_size_update', { puzzle_size: selected_puzzle_size });
-    newRoundCreateButton.attr('disabled',"true");
+    socket.emit('puzzle_size_update', { 
+        puzzle_size: selected_puzzle_size,
+        puzzle_difficult: selected_puzzle_difficult 
+    });
     $('#newround_image').removeAttr('src');
     $('#newround_image_wrap').css('display', 'none');
-
 })
 
 function getSelectorImage() {
@@ -145,12 +161,15 @@ function getSelectorImage() {
     template.appendTo('#selectimage_table');
     $('.more_images').click(function () {
         pageCount += 1;
-        socket.emit('nextPage', { pageCount: pageCount, puzzle_size:selected_puzzle_size });
+        socket.emit('nextPage', { 
+            pageCount: pageCount, 
+            puzzle_size: selected_puzzle_size,
+            puzzle_difficult: selected_puzzle_difficult
+        });
     });
     $('.selector-image').click(function () {
         var imgSrc = $(this).attr('src');
         $('#newround_image').attr('src', imgSrc);
-        newRoundCreateButton.removeAttr('disabled');
         //$('#newround_blank').css('display', 'inline');
         selectImageDialog.close();
     });
@@ -159,11 +178,14 @@ function getSelectorImage() {
 function allImageReadyCallback() {
     initRoundDetailDialog();
     if (admin == "true") {
+    //if (true) {
         initNewRoundDialog();
         initSelectImageDialog();
     }
     else {
-        initRandomRoundDialog();
+        initNewRoundDialog();
+        $('#newround_image_button').attr('disabled', 'true');
+        $('#newround_image_button').text('Random Image');
     }
     getJoinableRounds();
 }
@@ -206,13 +228,12 @@ function initRandomRoundDialog() {
     });
 
     newRoundCreateButton.click(function () {
-
-        var imgSrc = Array.from(simpleImageSrcSet)[Math.floor((Math.random() * (simpleImageSrcSet.size - 1)))];
         var playersNum = 1;
         var shape = 'jagged';
         var level = 1;
         var edge = false;
         var border = false;
+        var algorithm = 'distribute';
         if ($('.newround-shape-square').prop("checked")) {
             shape = 'square';
             level = 2;
@@ -227,17 +248,27 @@ function initRandomRoundDialog() {
         if ($('#border_checkbox').prop("checked")) {
             border = true;
         }
-
-        postNewRound(imgSrc, level, playersNum, shape, edge, border);
+        var official = false;
+        if ($('#official_checkbox').prop("checked")) {
+            official = true;
+        }
+        var forceLeaveEnable = false;
+        if ($('#forceleave_checkbox').prop("checked")) {
+            forceLeaveEnable = true;
+        }
+        if ($('#old_radio').prop("checked")) {
+            algorithm = 'central';
+        }
+        postNewRound(null, 0, 0, level, playersNum, shape, edge, border, algorithm, official, forceLeaveEnable);
     });
 
     $('#player_num_div').css('display', 'none');
     $('#select_img_div').css('display', 'none');
     $('#puzzle_size_div').css('display','none');
+    $('#puzzle_difficult_div').css('display','none');
 
-    mySlider.slider('setValue', 1);
+    numSlider.slider('setValue', 1);
     $('#randomround_button').click(function () {
-        newRoundCreateButton.removeAttr('disabled');
         //$('#newround_blank').css('display', 'inline');
         $('#newround_image').attr('src', '/images/logo.png')
 
@@ -259,11 +290,14 @@ function initNewRoundDialog() {
 
     newRoundCreateButton.click(function () {
         var imgSrc = $('#newround_image').attr('src');
-        var playersNum = mySlider.slider('getValue');
+        var playersNum = numSlider.slider('getValue');
+        var size = sizeSlider.slider('getValue');
+        var difficult = difficultSlider.slider('getValue');
         var shape = 'jagged';
         var level = 1;
         var edge = false;
         var border = false;
+        var algorithm = 'distribute';
         if ($('.newround-shape-square').prop("checked")) {
             shape = 'square';
             level = 2;
@@ -279,22 +313,68 @@ function initNewRoundDialog() {
         if ($('#border_checkbox').prop("checked")) {
             border = true;
         }
-        postNewRound(imgSrc, level, playersNum, shape, edge, border);
+        var official = false;
+        if ($('#official_checkbox').prop("checked")) {
+            official = true;
+        }
+        var forceLeaveEnable = false;
+        if ($('#forceleave_checkbox').prop("checked")) {
+            forceLeaveEnable = true;
+        }
+        if ($('#old_radio').prop("checked")) {
+            algorithm = 'central';
+        }
+        if (playersNum == '1') {
+            if (imgSrc) {
+                var thumbStr = '_thumb';
+                var thumbIndex = imgSrc.indexOf(thumbStr);
+                if (thumbIndex >= 0) {
+                    imgSrc = imgSrc.substring(0, thumbIndex) + imgSrc.substring(thumbIndex + thumbStr.length);
+                }
+            }
+            window.location.href = requrl + 'round/random_puzzle/' + size + (imgSrc? '?src=' + imgSrc: '');
+        }
+        else{
+            postNewRound(imgSrc, size, difficult, level, playersNum, shape, edge, border, algorithm, official, forceLeaveEnable);
+        }
     });
 
-    mySlider.slider({
+    numSlider.slider({
         formatter: function (value) {
             return 'Current value: ' + value;
         }
     });
-    mySlider2.slider({
+
+    if(admin != "true") {
+        numSlider.change(function() {
+            var num = parseInt($(this).val());
+            console.log(num);
+            if(num > 1) {
+                $('#admin_key_div').css('display', 'inline');
+            } else {
+                $('#admin_key_div').css('display', 'none');
+            }
+        });
+        $('#official').css('display', 'none');
+        $('#puzzle_difficult_div').css('display', 'none');
+        $('#algorithm_radio_row').css('display', 'none');
+        $('#player_num_div').css('display', 'none');
+        $('#newround_table').css('display', 'none');
+    }
+    sizeSlider.slider({
         formatter: function (value) {
             return 'Current value: ' + value+"*"+value;
         }
     });
 
+    difficultSlider.slider({
+        formatter: function (value) {
+            return 'Current value: ' + value;
+        }
+    });
+
     $('#newround_button').click(function () {
-        newRoundCreateButton.attr('disabled', 'true');
+        //$('#admin_key_div').css('display', 'none');
         $('#newround_image_wrap').css('display', 'none');
         $('#newround_image').removeAttr('src');
     });
@@ -312,7 +392,7 @@ function initSelectImageDialog() {
     });
 
     $('#newround_image_button').click(function () {
-        $('#newround_image_wrap').css('display', '');
+        $('#newround_image_wrap').css('display', 'block');
         if (!selectImageDialog.open) {
             selectImageDialog.showModal();
         }
@@ -341,15 +421,14 @@ function checkRoundStart(round){
 
 function renderRoundPlayers(round) {
     var roundID = round.round_id;
+    console.log(round);
     if (checkRoundStart(round)) {
         return;
     }
     var roundCard = null;
     if (roundsIDList[roundID]) {
         roundCard = $('#' + roundsIDList[roundID]);
-        var roundCardNum = roundCard.find('.roundcard-num');
-        var roundCardJoin = roundCard.find('.roundcard-join');
-        roundCardNum.text(round.players.length + '/' + round.players_num);
+        roundCard.find('.roundcard-num').text(round.players.length + '/' + round.players_num);
     }
 
     for (var player of round.players) {
@@ -375,12 +454,15 @@ function renderRoundDetail(round) {
     var roundDetailProgress = $('#rounddetail_progress');
 
     var roundDetailLevel = $('#rounddetail_level');
-
+    var img = new Image();
+    img.src = round.image;
+    /*
     if (admin == "true") {
         roundDetailImage.attr('src', round.image);
     } else {
         roundDetailImage.attr('src', '/images/logo.png');
-    }
+    }*/
+    roundDetailImage.attr('src', '/images/logo.png');
     roundDetailID.text(round.round_id);
     roundDetailCreator.text(round.creator);
     roundDetailCreateTime.text(round.create_time);
@@ -472,7 +554,7 @@ function renderRoundList(data) {
             joinRound(roundID);
             renderRoundDetail(roundsList[roundID]);
         });
-
+        /*
         if (admin == "true") {
             // roundCardImage.attr('src', round.image);
             var bg = 'url(\'/' + round.image + '\') center center';
@@ -481,9 +563,10 @@ function renderRoundList(data) {
         } else {
             roundCardImage.css("background", "url('/images/hide.jpg') center center");
             // roundCardImage.attr('src', '/images/logo.png');            
-        }
-        roundCardTitle.text('Round ' + roundID);
-        roundCard.find('.roundcard-level').text(round.level);
+        }*/
+        roundCardImage.css("background", "url('/images/hide.jpg') center center");
+        roundCardTitle.text('Round ' + roundID + (round.official? ' (official)': ' (exercise)'));
+        roundCard.find('.roundcard-level').text(round.tilesPerRow + 'x' + round.tilesPerColumn);
     }
 
     var roundCardprefix = 'roundcard_';
@@ -551,23 +634,34 @@ function getJoinableRounds() {
     });
 }
 
-function postNewRound(imgSrc, level, playersNum, shape, edge, border) {
-    var img = new Image();
-    var thumbStr = '_thumb';
-    var thumbIndex = imgSrc.indexOf(thumbStr);
-    if (thumbIndex >= 0) {
-        imgSrc = imgSrc.substring(0, thumbIndex) + imgSrc.substring(thumbIndex + thumbStr.length);
+function postNewRound(imgSrc, size, difficult, level, playersNum, shape, edge, border, algorithm, official, forceLeaveEnable) {
+    if (imgSrc) {
+        var img = new Image();
+        var thumbStr = '_thumb';
+        var thumbIndex = imgSrc.indexOf(thumbStr);
+        if (thumbIndex >= 0) {
+            imgSrc = imgSrc.substring(0, thumbIndex) + imgSrc.substring(thumbIndex + thumbStr.length);
+        }
+        img.src = imgSrc;
     }
-    img.src = imgSrc;
     var param = {
         username: username,
+        admin: admin == "true",
         imageURL: imgSrc,
+        imageSize: size,
+        difficult, difficult,
         level: level,
         edge: edge,
         shape: shape,
         border: border,
         players_num: playersNum,
+        algorithm: algorithm,
+        official: official,
+        forceLeaveEnable: forceLeaveEnable,
     };
+    if (admin != "true") {
+        param.key = $('#newround_key_input').val();
+    }
     socket.emit('newRound', param);
 }
 

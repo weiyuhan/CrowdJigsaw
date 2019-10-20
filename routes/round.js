@@ -5,62 +5,66 @@ var RoundModel = require('../models/round').Round;
 var UserModel = require('../models/user').User;
 var ActionModel = require('../models/action').Action;
 var RecordModel = require('../models/record').Record;
+var SurveyModel = require('../models/survey').Survey;
+var CogModel = require('../models/cog').Cog;
 var util = require('./util.js');
 var dev = require('../config/dev');
 var images = require("images");
 const redis = require('redis').createClient();
 const Promise = require('bluebird');
 
-function saveScore(round_id) {
+async function saveScore(round_id) {
     let redis_key = 'round:' + round_id + ':scoreboard';
-    Promise.join(
+    let results = await Promise.join(
         redis.zrevrangeAsync(redis_key, 0, -1, 'WITHSCORES'),
         redis.zrevrangeAsync(redis_key + ':create_correct_link', 0, -1, 'WITHSCORES'),
         redis.zrevrangeAsync(redis_key + ':remove_correct_link', 0, -1, 'WITHSCORES'),
         redis.zrevrangeAsync(redis_key + ':create_wrong_link', 0, -1, 'WITHSCORES'),
         redis.zrevrangeAsync(redis_key + ':remove_wrong_link', 0, -1, 'WITHSCORES'),
-        redis.zrevrangeAsync(redis_key + ':remove_hinted_wrong_link', 0, -1, 'WITHSCORES')
-    ).then(function(results) {
-        let fields_name = ['score', 'create_correct_link', 'remove_correct_link',
-            'create_wrong_link', 'remove_wrong_link', 'remove_hinted_wrong_link'];
-        let scoremap = {};
-        for (var j = 0; j < results.length; j++) {
-            let field = results[j];
-            if (field) {
-                for (var i = 0; i < field.length; i += 2) {
-                    let username = field[i];
-                    let score = parseInt(field[i+1]);
-                    if (!(username in scoremap)) {
-                        scoremap[username] = {
-                            score: 0,
-                            create_correct_link: 0,
-                            remove_correct_link: 0,
-                            create_wrong_link: 0,
-                            remove_wrong_link: 0,
-                            remove_hinted_wrong_link: 0
-                        };
-                    }
-                    scoremap[username][fields_name[j]] = score;
+        redis.zrevrangeAsync(redis_key + ':remove_hinted_wrong_link', 0, -1, 'WITHSCORES'),
+    );
+    let roundJSON = await redis.getAsync('round:' + round_id);
+    let round = JSON.parse(roundJSON);
+    let fields_name = ['score', 'create_correct_link', 'remove_correct_link',
+        'create_wrong_link', 'remove_wrong_link', 'remove_hinted_wrong_link'];
+    let scoremap = {};
+    for (let j = 0; j < results.length; j++) {
+        let field = results[j];
+        if (field) {
+            for (let i = 0; i < field.length; i += 2) {
+                let username = field[i];
+                let score = parseInt(field[i+1]);
+                if (!(username in scoremap)) {
+                    scoremap[username] = {
+                        score: 0,
+                        create_correct_link: 0,
+                        remove_correct_link: 0,
+                        create_wrong_link: 0,
+                        remove_wrong_link: 0,
+                        remove_hinted_wrong_link: 0,
+                        official: round.official || false,
+                    };
                 }
+                scoremap[username][fields_name[j]] = score;
             }
         }
-        for(let username in scoremap){
-            let condition = {
-                round_id: round_id,
-                username: username
-            };
-            let operation = {
-                $set: scoremap[username]
-            };
-            RecordModel.update(condition, operation, function(err) {
-                if (err) {
-                    console.log(err);
-                }
-            });
-        }
-    }).catch(function(err) {
-        console.log(err);
-    });
+    }
+    for(let username in scoremap){
+        let first_edges = await redis.smembersAsync('round:' + round_id + ':first_edges:' + username);
+        scoremap[username].first_edges = first_edges;
+        let condition = {
+            round_id: round_id,
+            username: username
+        };
+        let operation = {
+            $set: scoremap[username]
+        };
+        RecordModel.update(condition, operation, function(err) {
+            if (err) {
+                console.log(err);
+            }
+        });
+    }
 }
 
 function getRoundFinishTime(startTime) {
@@ -125,29 +129,48 @@ module.exports = function (io) {
          * Create a new round
          */
         socket.on('newRound', function (data) {
-            RoundModel.count({}, function (err, docs_size) {
+            if (data.players_num > 1 && 
+                data.admin != true && data.key != dev.admin_key) {
+                console.log(data.key, dev.admin_key);
+                socket.emit('create_round_failed', {
+                    username: data.username,
+                    msg: "wrong Admin Key for multiplayer round"
+                });
+                return;
+            }
+            RoundModel.count({}, async function (err, docs_size) {
                 if (err) {
                     console.log(err);
                 } else {
-                    let index = docs_size;
-                    let TIME = util.getNowFormatDate();
                     let imageSrc = data.imageURL;
-                    let image = images('public/' + imageSrc);
-                    let size = image.size();
-                    let imageWidth = size.width;
-                    let imageHeight = size.height;
+                    if (!imageSrc && data.imageSize > 0) {
+                        let randomUrl = await redis.srandmemberAsync('jigsaw_image:' + data.difficult, 1);
+                        if (randomUrl.length <= 0) {
+                            return;
+                        }
+                        imageSrc = randomUrl[0];
+                    }
+                    let index = docs_size;
+                    console.log(index, imageSrc);
+                    let TIME = util.getNowFormatDate();
                     let tileWidth = 64;
-                    let tilesPerRow = Math.floor(imageWidth / tileWidth);
-                    let tilesPerColumn = Math.floor(imageHeight / tileWidth);
+                    let tilesPerRow = data.imageSize;
+                    let tilesPerColumn = data.imageSize;
+                    let imageWidth = tilesPerColumn * tileWidth;
+                    let imageHeight = tilesPerRow * tileWidth;
                     let shapeArray = util.getRandomShapes(tilesPerRow, tilesPerColumn, data.shape, data.edge);
                     let operation = {
                         round_id: index,
                         creator: data.username,
                         image: imageSrc,
+                        difficult: data.difficult,
                         level: data.level,
                         shape: data.shape,
                         edge: data.edge,
+                        official: data.official || false,
+                        forceLeaveEnable: data.forceLeaveEnable || false,
                         border: data.border,
+                        algorithm: data.algorithm,
                         create_time: TIME,
                         players_num: data.players_num,
                         imageWidth: imageWidth,
@@ -166,7 +189,7 @@ module.exports = function (io) {
 
                     createRecord(data.username, operation.round_id, TIME);
 
-                    RoundModel.create(operation, function (err, doc) {
+                    RoundModel.create(operation, async function (err, doc) {
                         if (err) {
                             console.log(err);
                         } else {
@@ -182,9 +205,11 @@ module.exports = function (io) {
                                 msg: 'You just create and join round' + doc.round_id
                             });
                             let redis_key = 'round:' + doc.round_id;
-                            redis.set(redis_key, JSON.stringify(doc));
+                            await redis.setAsync(redis_key, JSON.stringify(doc));
+                            await redis.delAsync('round:' + doc.round_id + ':scoreboard');
+                            await redis.delAsync('round:' + doc.round_id + ':players');
                             redis_key = 'round:' + doc.round_id + ':players';
-                            redis.sadd(redis_key, data.username);
+                            await redis.saddAsync(redis_key, data.username);
                         }
                     });
                 }
@@ -287,11 +312,6 @@ module.exports = function (io) {
                                     if (err) {
                                         console.log(err);
                                     }
-                                    else{
-                                        socket.broadcast.emit('forceLeave', {
-                                            round_id: data.round_id
-                                        });
-                                    }
                                 });
                                 saveScore(data.round_id);
                             } else {
@@ -306,7 +326,7 @@ module.exports = function (io) {
                                     if (err) {
                                         console.log(err);
                                     } 
-                                    else {
+                                    else if (solved_players + 1 >= 3) {
                                         socket.broadcast.emit('forceLeave', {
                                             round_id: data.round_id
                                         });
@@ -326,16 +346,17 @@ module.exports = function (io) {
                                     "total_links": data.totalLinks,
                                     "hinted_links": data.hintedLinks,
                                     "correct_links": data.correctLinks,
-                                    "total_tiles": data.totalTiles,
-                                    "hinted_tiles": data.hintedTiles,
+                                    "total_steps": data.totalSteps,
+                                    "hinted_steps": data.hintedSteps,
                                     "total_hints": data.totalHintsNum,
                                     "correct_hints": data.correctHintsNum
                                 }
                             };
 
                             let condition = {
-                                username: data.player_name,
-                                "round_id": data.round_id
+                                "username": data.player_name,
+                                "round_id": data.round_id,
+                                "end_time": "-1"
                             };
 
                             RecordModel.update(condition, operation, function (err, doc) {
@@ -352,21 +373,8 @@ module.exports = function (io) {
                 });
         });
         socket.on('saveGame', function (data) {
-            var save_game = {
-                round_id: data.round_id,
-                steps: data.steps,
-                realSteps: data.realSteps,
-                startTime: data.startTime,
-                maxSubGraphSize: data.maxSubGraphSize,
-                tiles: data.tiles,
-                tileHintedLinks: data.tileHintedLinks,
-                tileIsHintedLinks: data.tileIsHintedLinks,
-                totalHintsNum: data.totalHintsNum,
-                correctHintsNum: data.correctHintsNum
-            };
-
             let redis_key = 'user:' + data.player_name + ':savegame';
-            redis.set(redis_key, JSON.stringify(save_game), function (err, response) {
+            redis.set(redis_key, JSON.stringify(data), function (err, response) {
                 if (err) {
                     console.log(err);
                     socket.emit('gameSaved', {
@@ -378,6 +386,25 @@ module.exports = function (io) {
                         round_id: data.round_id,
                         player_name: data.player_name
                     });
+                }
+            });
+        });
+        socket.on('survey', function(data) {
+            if (!data.round_id || !data.player_name || !data.survey_type) {
+                return;
+            }
+            if (data.round_id < 0) {
+                return;
+            }
+            SurveyModel.create({
+                round_id: data.round_id,
+                time: Date.now(),
+                player_name: data.player_name,
+                survey_type: data.survey_type,
+                extra: data.extra,
+            }, function (err) {
+                if (err) {
+                    console.log(err);
                 }
             });
         });
@@ -464,35 +491,37 @@ module.exports = function (io) {
             let operation = {};
             let contri = 0;
             let rating = data.rating;
+            let condition = {
+                "username": data.player_name,
+                "round_id": data.round_id
+            };
+
             if (data.finished) {
                 operation = {
                     $set: {
-                        "rating": rating
+                        "rating": rating,
+                        "edges": data.edges
                     }
                 };
             } else {
+                condition["end_time"] = "-1";
                 operation = {
                     $set: {
-                        "end_time": "-1",
                         "steps": data.steps,
+                        "start_time": data.startTime,
                         "time": getRoundFinishTime(data.startTime),
-                        "contribution": contri.toFixed(3),
                         "total_links": data.totalLinks,
                         "hinted_links": data.hintedLinks,
                         "correct_links": data.correctLinks,
-                        "total_tiles": data.totalTiles,
-                        "hinted_tiles": data.hintedTiles,
+                        "total_steps": data.totalSteps,
+                        "hinted_steps": data.hintedSteps,
                         "total_hints": data.totalHintsNum,
                         "correct_hints": data.correctHintsNum,
-                        "rating": rating
+                        "rating": rating,
+                        "edges": data.edges
                     }
                 };
             }
-
-            let condition = {
-                username: data.player_name,
-                "round_id": data.round_id
-            };
 
             RecordModel.update(condition, operation, function (err, doc) {
                 if (err) {
@@ -503,6 +532,55 @@ module.exports = function (io) {
             });
         });
     });
+
+    router.route('/random_puzzle/:size').get(async function (req, res) {
+        let puzzleSize = req.params.size;
+        if (puzzleSize < 4 || puzzleSize > 10) {
+            return;
+        }
+        let imageSrc = req.query.src;
+        if (!imageSrc) {
+            let randomUrl = await redis.srandmemberAsync('jigsaw_image:' + 0, 1);
+            if (randomUrl.length <= 0) {
+                return;
+            }
+            imageSrc = randomUrl[0];
+        }
+        let tileWidth = 64;
+        let tilesPerRow = puzzleSize;
+        let tilesPerColumn = puzzleSize;
+        let imageWidth = tilesPerColumn * tileWidth;
+        let imageHeight = tilesPerRow * tileWidth;
+        let shape = 'jagged'
+        let edge = 'false';
+        let border = 'true';
+        let algorithm = 'distributed';
+        let TIME = util.getNowFormatDate();
+        let shapeArray = util.getRandomShapes(tilesPerRow, tilesPerColumn, shape, edge);
+        res.render('puzzle', {
+                title: 'Random Puzzle',
+                player_name: req.session.user.username,
+                players_num: 1,
+                level: 1,
+                roundID: -1,
+                solved_players: 0,
+                image: imageSrc,
+                tileWidth: tileWidth,
+                startTime: TIME,
+                shape: shape,
+                edge: edge,
+                border: border,
+                official: false,
+                forceLeaveEnable: false,
+                algorithm: algorithm,
+                tilesPerRow: tilesPerRow,
+                tilesPerColumn: tilesPerColumn,
+                imageWidth: imageWidth,
+                imageHeight: imageHeight,
+                shapeArray: shapeArray
+            });
+    });
+
 
     /**
      * Get all rounds
@@ -526,6 +604,50 @@ module.exports = function (io) {
             } else {
                 res.send(JSON.stringify(docs));
             }
+        });
+    });
+
+    router.route('/detail/:round_id/:username').all(LoginFirst).get(function (req, res, next) {
+        var round_id = req.params.round_id;
+        var username = req.params.username;
+        RecordModel.findOne({
+            round_id: round_id,
+            username: username
+        }, function(err, record) {
+            if (err) {
+                res.send("");
+            } else if (record) {
+                res.send(JSON.stringify(record));          
+            }
+        });
+    });
+
+    router.route('/progress/:round_id').all(LoginFirst).get(async function (req, res, next) {
+        var round_id = req.params.round_id;
+        let redis_key = 'round:' + round_id + ':coglist';
+        let coglist = await redis.lrangeAsync(redis_key, 0, -1);
+        if (coglist.length > 0) {
+            res.json(coglist);
+            return;
+        }
+        CogModel.find({round_id: round_id}, async function(err, cogs) {
+            if (err) {
+                console.log(err);
+                return;
+            }
+            let coglist = [];
+            for (let i = 0; i < cogs.length; i++) {
+                let brief_cog = {
+                    correctHints: cogs[i].correctHints,
+                    correctLinks: cogs[i].correctLinks,
+                    completeLinks: cogs[i].completeLinks,
+                    totalLinks: cogs[i].totalLinks,
+                }
+                let last = JSON.stringify(brief_cog);
+                coglist.push(last);
+                await redis.rpushAsync(redis_key, last);
+            }
+            res.json(coglist);
         });
     });
 
@@ -589,8 +711,8 @@ module.exports = function (io) {
                             let s = parseInt(time[2]);
                             let hint_ratio = 0;
                             let hint_precision = 0;
-                            if (winner.total_tiles > 0 && winner.total_hints > 0) {
-                                hint_ratio = r.hinted_tiles / r.total_tiles;
+                            if (winner.total_steps > 0 && winner.total_hints > 0) {
+                                hint_ratio = r.hinted_steps / r.total_steps;
                                 hint_precision = r.correct_hints / r.total_hints;
                             }
                             resolve({
@@ -600,7 +722,7 @@ module.exports = function (io) {
                                 "hint_precision": hint_precision
                             });
                         }
-                    })
+                    });
                 }
             });
         });

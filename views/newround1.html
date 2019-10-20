@@ -22,6 +22,22 @@
 
                     <table class="table" id="newround_table">
                         <tbody>
+                            <tr id="official">
+                                <td>
+                                    <div class="checkbox icheck-orange">
+                                        <input type="checkbox" id="official_checkbox" />
+                                        <label for="official_checkbox">Official</label>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr id="forceleave">
+                                <td>
+                                    <div class="checkbox icheck-orange">
+                                        <input type="checkbox" id="forceleave_checkbox" />
+                                        <label for="forceleave_checkbox">Enable Force Leave</label>
+                                    </div>
+                                </td>
+                            </tr>
                             <tr id="shape_radio">
                                 <td>
                                     <div class="radio icheck-emerland">
@@ -54,23 +70,55 @@
                                     </div>
                                 </td>
                             </tr>
+                            <tr id="algorithm_radio_row">
+                                <td>
+                                    <div class="radio icheck-amethyst">
+                                        <input type="radio" checked id="new_radio" name="algorithm"/>
+                                        <label for="new_radio">
+                                            Distribute
+                                        </label>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="radio icheck-emerland">
+                                        <input type="radio" id="old_radio" name="algorithm" />
+                                        <label for="old_radio">
+                                            Central
+                                        </label>
+                                    </div>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
-                    <br>
                     <div id="puzzle_size_div">
                         <div id="puzzle_size_area">
                             <b id="puzzle_size_text">Puzzle Size: </b>
                         </div>
                         <input id="puzzle_size_slider" data-slider-id="ex2Slider" type="text" data-slider-min="4" data-slider-max="10" data-slider-step="1"
                                data-slider-value="4"  />
+                        <br>
                     </div>
-                    <br>
+                    <div id="puzzle_difficult_div">
+                        <div id="puzzle_difficult_area">
+                            <b id="puzzle_difficult_text">Puzzle Difficult: </b>
+                        </div>
+                        <input id="puzzle_difficult_slider" data-slider-id="ex3Slider" type="text" data-slider-min="0" data-slider-max="6" data-slider-step="1"
+                            data-slider-value="0" />
+                        <br>
+                    </div>
                     <div id="player_num_div">
                         <div id="newround_num_area">
                             <b id="newround_num_text">Players Number: </b>
                         </div>
                         <input id="newround_number_slider" data-slider-id="ex1Slider" type="text" data-slider-min="1" data-slider-max="200" data-slider-step="1"
                             data-slider-value="1" />
+                        <br>
+                    </div>
+                    <div id="admin_key_div" style="display: none;">
+                        <div id="newround_key_area">
+                            <b id="newround_key_text">Admin Key: </b>
+                        </div>
+                        <input type="password" id="newround_key_input"/>
                     </div>
                 </form>
             </div>

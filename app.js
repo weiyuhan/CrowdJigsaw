@@ -4,7 +4,9 @@ var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
+var redis = require("redis")
 const session = require('express-session');
+var RedisStore = require('connect-redis')(session);
 const ejs = require('ejs');
 var fs = require('fs');
 const glob = require('glob');
@@ -15,8 +17,8 @@ require('./db');
 var FileStreamRotator = require('file-stream-rotator');
 
 var Promise = require("bluebird");
-Promise.promisifyAll(require("redis"));
-
+Promise.promisifyAll(redis);
+const redisClient = require('redis').createClient();
 var app = express();
 var server = require('http').Server(app);
 var io = require('socket.io')(server);
@@ -33,9 +35,14 @@ app.all('*', function (req, res, next) {
 // config session
 app.use(session({
     secret: 'secret',
-    cookie: { maxAge: 1000 * 60 * 30 },
+    cookie: { maxAge: 1000 * 60 * 60 * 6 },
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    store: new RedisStore({
+        host: "127.0.0.1",
+        port: 6379,
+        db: 1
+    })
 }));
 
 app.use(function (req, res, next) {
@@ -139,51 +146,61 @@ var ImagesModel = require('./models/images').Images;
 if (server) {
     // update the image paths to database: "images/raw/starter_thumb.png"
     // empty the last database and save the latest
+    for (let i = 1; i < 11; i++) {
+        redisClient.del('image:' + i); 
+        for (let j = 1; j < 101; j++) {
+            redisClient.del('image:' + i + ':' + j);
+        }  
+    }
     ImagesModel.remove({}, function (err) {
         if (err) {
             console.log(err);
         } else {
-            console.log('[OK] Images Collection Rebuilt.');
             glob('./public/images/raw/*_thumb.jpg', function (err, files) {
                 if (err) {
                     console.log(err);
                 } else {
                     var thumbnails = files.map(f => f.substring(9));
-                    thumbnails.forEach(function (item, index, input) {
+                    thumbnails.forEach(async function (item, index, input) {
                         let num = Number(item.split('_')[1].split('x')[0]);
+                        if (num != undefined && num !== 10) {
+                            return;
+                        }
+                        let difficult = await redisClient.hgetAsync('gaps:images:difficult', item.split('_')[0].split('/')[2])
+                        difficult = difficult ? difficult : 0;
                         if (num) {
                             ImagesModel.create({
                                 image_path: item,
                                 row_num: num,
-                                col_num: num
+                                col_num: num,
+                                difficult: difficult
                             }, function (err) {
                                 if (err) {
                                     console.log(err);
+                                } else if (num <= 10) {
+                                    real_path = item.split('_')[0] + '_' + num + 'x' + num + '.jpg';
+                                    redisClient.sadd('jigsaw_image', real_path);
+                                    redisClient.sadd('jigsaw_image:' + difficult, real_path);
                                 }
                             });
                         }
                     });
+                    console.log('[OK] Images Collection Rebuilt.');
                 };
             });
         }
     });
     io.on('connection', function (socket) {
-        // select the simple puzzles from the database
-        ImagesModel.find({ 'row_num': { $lte: 5 } }, function (err, docs) {
-            if (err) {
-                console.log(err);
-            } else {
-                socket.emit('simple_thumbnails', { thumblist: docs });
-            }
-        });
 
         socket.on('puzzle_size_update',function (data) {
-            ImagesModel.find({ 'row_num': data.puzzle_size},null,{limit:10}, function (err, docs) {
+            let condition = { 
+                'difficult': data.puzzle_difficult
+            };
+            ImagesModel.find(condition,null,{limit:10}, function (err, docs) {
                 if (err) {
                     console.log(err);
                 } else {
                     socket.emit('thumbnails', { thumblist: docs });
-
                 }
             });
 
@@ -193,7 +210,10 @@ if (server) {
         socket.on('nextPage', function (data) {
             //select the next n results and send
             let pageSize = 10;
-            ImagesModel.find({'row_num': data.puzzle_size}, null, { skip: pageSize * data.pageCount, limit: pageSize }, function (err, docs) {
+            let condition = { 
+                'difficult': data.puzzle_difficult
+            };
+            ImagesModel.find(condition, null, { skip: pageSize * data.pageCount, limit: pageSize }, function (err, docs) {
                 if(err){
                     console.log(err);
                 }else{
