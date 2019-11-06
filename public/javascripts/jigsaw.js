@@ -1441,17 +1441,6 @@ function JigsawPuzzle(config) {
             var roundPosition = cellPosition * instance.tileWidth;
 
             var alreadyPlacedTile = (getTileAtCellPosition(cellPosition) != undefined);
-            /*
-            if(alreadyPlacedTile){
-                var theTile = getTileAtCellPosition(cellPosition);
-                for (var j = 0; j < tiles.length; j++) {
-                    if (tiles[j] == theTile) {
-                        alreadyPlacedTile = false;
-                        break;
-                    }
-                }
-            }
-            */
             hasConflict = hasConflict || alreadyPlacedTile;
             if (!hasConflict) {
                 var topTile = getTileAtCellPosition(cellPosition + new Point(0, -1));
@@ -1464,99 +1453,18 @@ function JigsawPuzzle(config) {
                 var bottomRightTile = getTileAtCellPosition(cellPosition + new Point(1, 1));
                 
                 var topTileConflict = (topTile != undefined);
-                /*
-                if(topTileConflict){
-                    for (var j = 0; j < tiles.length; j++) {
-                        if (tiles[j] == topTile) {
-                            topTileConflict = false;
-                            break;
-                        }
-                    }
-                }
-                */
-
                 var rightTileConflict = (rightTile != undefined);
-                /*
-                if(rightTileConflict){
-                    for (var j = 0; j < tiles.length; j++) {
-                        if (tiles[j] == rightTile) {
-                            rightTileConflict = false;
-                            break;
-                        }
-                    }
-                }
-                */
                 var bottomTileConflict = (bottomTile != undefined);
-                /*
-                if(bottomTileConflict){
-                    for (var j = 0; j < tiles.length; j++) {
-                        if (tiles[j] == bottomTile) {
-                            bottomTileConflict = false;
-                            break;
-                        }
-                    }
-                }
-                */
                 var leftTileConflict = (leftTile != undefined);
-                /*
-                if(leftTileConflict){
-                    for (var j = 0; j < tiles.length; j++) {
-                        if (tiles[j] == leftTile) {
-                            leftTileConflict = false;
-                            break;
-                        }
-                    }
-                }
-                */
                 var topLeftTileConflict = (topLeftTile != undefined);
-                /*
-                if(topLeftTileConflict){
-                    for (var j = 0; j < tiles.length; j++) {
-                        if (tiles[j] == topLeftTile) {
-                            topLeftTileConflict = false;
-                            break;
-                        }
-                    }
-                }
-                */
                 var topRightTileConflict = (topRightTile != undefined);
-                /*
-                if(topRightTileConflict){
-                    for (var j = 0; j < tiles.length; j++) {
-                        if (tiles[j] == topRightTile) {
-                            topRightTileConflict = false;
-                            break;
-                        }
-                    }
-                }
-                */
                 var bottomLeftTileConflict = (bottomLeftTile != undefined);
-                /*
-                if(bottomLeftTileConflict){
-                    for (var j = 0; j < tiles.length; j++) {
-                        if (tiles[j] == bottomLeftTile) {
-                            bottomLeftTileConflict = false;
-                            break;
-                        }
-                    }
-                }
-                */
                 var bottomRightTileConflict = (bottomRightTile != undefined);
-                /*
-                if(bottomRightTileConflict){
-                    for (var j = 0; j < tiles.length; j++) {
-                        if (tiles[j] == bottomRightTile) {
-                            bottomRightTileConflict = false;
-                            break;
-                        }
-                    }
-                }
-                */
                 var aroundConflict = topTileConflict || bottomTileConflict || rightTileConflict || leftTileConflict
                 || topLeftTileConflict || topRightTileConflict || bottomLeftTileConflict || bottomRightTileConflict;
-                //console.log("aroundConflict:",topTileConflict,bottomTileConflict,rightTileConflict,leftTileConflict);
+
                 hasConflict = aroundConflict || hasConflict;
-                //console.log("checkResetPlaceConflict:",hasConflict);
+
                 if(hasConflict == true)
                     return hasConflict;
 
@@ -3579,7 +3487,6 @@ function JigsawPuzzle(config) {
             group.times = 60;
             group.desDiff = (group.destination * instance.tileWidth - 
                 group.groupTiles[0].position) / group.times;
-            console.log("已经在中间了");
             return;
         }
         //移动方向
@@ -3617,7 +3524,6 @@ function JigsawPuzzle(config) {
             prex = desx;
             prey = desy;
             if(Math.abs(desx-centerxno)<=1 && Math.abs(desy-centeryno)<=1 && isConflicted == false){
-                console.log("到中间了！");
                 break;
             }
             rawoffsetx = offsetdx;
@@ -3628,7 +3534,6 @@ function JigsawPuzzle(config) {
             desy = Math.round((group.y*instance.tileWidth+offsetdy)/instance.tileWidth);
             var newdis = Math.sqrt((desx*instance.tileWidth-centerx)*(desx*instance.tileWidth-centerx)+(desy*instance.tileWidth-centery)*(desy*instance.tileWidth-centery));
             if(newdis>=origindis){
-                console.log("距离变大了!");
                 break;
             }
             des.x = desx;
@@ -3658,7 +3563,6 @@ function JigsawPuzzle(config) {
     function findClusterCenter(left,right,mostTileSquare){
         var squareLeft = new Point(0,0);
         var maxNum=0;
-        //console.log("left,right:",left,right);
         for(var i=left.y; i<=right.y;i+=mostTileSquare.y){
             for(var j=left.x;j<=right.x;j+=mostTileSquare.x){
                 var squareTile = 0;
@@ -3668,7 +3572,7 @@ function JigsawPuzzle(config) {
                         if(tmpTile!=undefined){
                             squareTile++;
                         }
-                        //console.log("tmpTile:",new Point(j+l,i+k));
+                        
                     }
                 }
                 if(maxNum<squareTile){
