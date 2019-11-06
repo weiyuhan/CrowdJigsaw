@@ -29,6 +29,8 @@ socket.on('create_round_failed', function(data) {
 socket.on('roundChanged', function (data) {
     var round = data.round;
     round.players = data.players;
+    round.active_players = data.active_players || data.players || [];
+    round.active_total_players = data.active_total_players || round.players_num;
     roundsList[data.round_id] = round;
     //console.log(data.round.end_time, parseInt($('#rounddetail_id').text()));
     if(data.round.end_time != '-1' && data.round_id == parseInt($('#rounddetail_id').text())){
@@ -49,8 +51,8 @@ socket.on('roundChanged', function (data) {
         roundDetailJoinButton.removeAttr("disabled");
         renderRoundDetail(round);
     }
-    renderRoundList(roundsList);
     renderRoundPlayers(round);
+    renderRoundList(roundsList);
 });
 
 socket.on('roundPlayersChanged', function (data) {
@@ -59,6 +61,8 @@ socket.on('roundPlayersChanged', function (data) {
         return;
     }
     round.players = data.players;
+    round.active_players = data.active_players || data.players || [];
+    round.active_total_players = data.active_total_players || round.players_num;
     renderRoundPlayers(round);
     if (data.username == username) {
         $.amaran({
@@ -252,6 +256,10 @@ function initRandomRoundDialog() {
         if ($('#official_checkbox').prop("checked")) {
             official = true;
         }
+        var hintDelay = false;
+        if ($('#hint_delay_checkbox').prop("checked")) {
+            hintDelay = true;
+        }
         var forceLeaveEnable = false;
         if ($('#forceleave_checkbox').prop("checked")) {
             forceLeaveEnable = true;
@@ -259,7 +267,7 @@ function initRandomRoundDialog() {
         if ($('#old_radio').prop("checked")) {
             algorithm = 'central';
         }
-        postNewRound(null, 0, 0, level, playersNum, shape, edge, border, algorithm, official, forceLeaveEnable);
+        postNewRound(null, 0, 0, level, playersNum, shape, edge, border, algorithm, official, forceLeaveEnable, hintDelay);
     });
 
     $('#player_num_div').css('display', 'none');
@@ -317,6 +325,10 @@ function initNewRoundDialog() {
         if ($('#official_checkbox').prop("checked")) {
             official = true;
         }
+        var hintDelay = false;
+        if ($('#hint_delay_checkbox').prop("checked")) {
+            hintDelay = true;
+        }
         var forceLeaveEnable = false;
         if ($('#forceleave_checkbox').prop("checked")) {
             forceLeaveEnable = true;
@@ -335,7 +347,7 @@ function initNewRoundDialog() {
             window.location.href = requrl + 'round/random_puzzle/' + size + (imgSrc? '?src=' + imgSrc: '');
         }
         else{
-            postNewRound(imgSrc, size, difficult, level, playersNum, shape, edge, border, algorithm, official, forceLeaveEnable);
+            postNewRound(imgSrc, size, difficult, level, playersNum, shape, edge, border, algorithm, official, forceLeaveEnable, hintDelay);
         }
     });
 
@@ -420,22 +432,36 @@ function checkRoundStart(round){
 }
 
 function renderRoundPlayers(round) {
+    renderRoundDetailPlayers(round.active_players, round.active_total_players);
+
     var roundID = round.round_id;
-    console.log(round);
     if (checkRoundStart(round)) {
         return;
-    }
-    var roundCard = null;
-    if (roundsIDList[roundID]) {
-        roundCard = $('#' + roundsIDList[roundID]);
-        roundCard.find('.roundcard-num').text(round.players.length + '/' + round.players_num);
     }
 
     for (var player of round.players) {
         if (username == player && !(($("element").data('bs.modal') || {}).isShown)) {
             renderRoundDetail(round);
-        }
+        }        
     }
+}
+
+function renderRoundDetailPlayers(active_players, active_total_players) {
+    var roundDetailPlayerList = $('#rounddetail_playerlist');
+    roundDetailPlayerList.empty();
+
+    var roundDetailProgress = $('#rounddetail_progress');
+    //roundDetailProgress.MaterialProgress.setProgress(100*round.players.length/round.players_num);
+    roundDetailProgress.css('width', (100 * active_players.length / active_total_players) + '%');
+    roundDetailProgress.text(active_players.length + '/' + active_total_players);
+
+    for (var player of active_players) {
+        var li = $($('#rounddetail_li_template').html());
+        li.find('.player-name').text(player);
+        li.appendTo('#rounddetail_playerlist');
+    }
+
+    $('.roundcard-num').text(active_players.length + '/' + active_total_players);
 }
 
 function renderRoundDetail(round) {
@@ -451,7 +477,6 @@ function renderRoundDetail(round) {
     var roundDetailCreator = $('#rounddetail_author');
     var roundDetailCreateTime = $('#rounddetail_createtime');
     var roundDetailShapeImage = $('#rounddetail_shape_image');
-    var roundDetailProgress = $('#rounddetail_progress');
 
     var roundDetailLevel = $('#rounddetail_level');
     var img = new Image();
@@ -480,19 +505,11 @@ function renderRoundDetail(round) {
 
     roundDetailLevel.text('Level' + round.level);
 
-    var roundDetailPlayerList = $('#rounddetail_playerlist');
-    roundDetailPlayerList.empty();
+
     roundDetailJoinButton.text('Join');
     roundDetailCancelButton.text('Close');
 
-    //roundDetailProgress.MaterialProgress.setProgress(100*round.players.length/round.players_num);
-    roundDetailProgress.css('width', (100 * round.players.length / round.players_num) + '%');
-    roundDetailProgress.text(round.players.length + '/' + round.players_num);
     for (var player of round.players) {
-        var li = $($('#rounddetail_li_template').html());
-        li.find('.player-name').text(player);
-        li.appendTo('#rounddetail_playerlist');
-
         if (player == username) {
             if (round.creator == username) {
                 roundDetailJoinButton.text('Start!');
@@ -508,6 +525,18 @@ function renderRoundDetail(round) {
             if (round.start_time == '-1' && round.players.length == round.players_num) {
                 startRound(roundID);
             }
+            for (var otherRoundID in roundsIDList) {
+                var roundCardID = roundsIDList[otherRoundID];
+                if (!roundCardID) {
+                    continue;
+                }
+                var roundCard = $('#' + roundCardID);
+                if (parseInt(otherRoundID) !== roundID) {
+                    roundCard.css('display', 'none');
+                } else {
+                    roundCard.css('display', 'block');
+                }
+            }
         }
     }
 
@@ -522,6 +551,7 @@ function renderRoundDetail(round) {
 
 function renderRoundList(data) {
     roundsList = {};
+
     for (var roundID in data) {
         var round = data[roundID];
         var roundID = round.round_id;
@@ -565,7 +595,7 @@ function renderRoundList(data) {
             // roundCardImage.attr('src', '/images/logo.png');            
         }*/
         roundCardImage.css("background", "url('/images/hide.jpg') center center");
-        roundCardTitle.text('Round ' + roundID + (round.official? ' (official)': ' (exercise)'));
+        roundCardTitle.text('Join Round ' + (round.official? ' (official)': ' (exercise)'));
         roundCard.find('.roundcard-level').text(round.tilesPerRow + 'x' + round.tilesPerColumn);
     }
 
@@ -585,6 +615,28 @@ function renderRoundList(data) {
         }
     }
     roundsIDList = newRoundsIDList;
+
+    var waitingRounds = [];
+    for (var roundCardID of roundsIDList) {
+        if (!roundCardID) {
+            continue;
+        }
+        waitingRounds.push(roundCardID);
+    }
+    var showRoundCardID = waitingRounds[Math.floor(Math.random() * waitingRounds.length)];
+    console.log(waitingRounds, showRoundCardID);
+
+    for (var roundCardID of roundsIDList) {
+        if (!roundCardID) {
+            continue;
+        }
+        var roundCard = $('#' + roundCardID);
+        if (roundCardID !== showRoundCardID) {
+            roundCard.css('display', 'none');
+        } else {
+            roundCard.css('display', 'block');
+        }
+    }
 }
 
 function getRoundPlayers(round) {
@@ -594,8 +646,10 @@ function getRoundPlayers(round) {
         dataType: 'json',
         cache: false,
         timeout: 5000,
-        success: function (players) {
-            round.players = players;
+        success: function (data) {
+            round.players = data.players;
+            round.active_players = data.active_players || data.players || [];
+            round.active_total_players = data.active_total_players;
             renderRoundPlayers(round);
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -634,7 +688,7 @@ function getJoinableRounds() {
     });
 }
 
-function postNewRound(imgSrc, size, difficult, level, playersNum, shape, edge, border, algorithm, official, forceLeaveEnable) {
+function postNewRound(imgSrc, size, difficult, level, playersNum, shape, edge, border, algorithm, official, forceLeaveEnable, hintDelay) {
     if (imgSrc) {
         var img = new Image();
         var thumbStr = '_thumb';
@@ -658,6 +712,7 @@ function postNewRound(imgSrc, size, difficult, level, playersNum, shape, edge, b
         algorithm: algorithm,
         official: official,
         forceLeaveEnable: forceLeaveEnable,
+        hintDelay: hintDelay,
     };
     if (admin != "true") {
         param.key = $('#newround_key_input').val();
@@ -671,7 +726,7 @@ function quitRound(roundID) {
 }
 
 function joinRound(roundID) {
-    socket.emit('joinRound', {round_id:roundID, username: username});
+    socket.emit('joinMinPlayersRound', {round_id:roundID, username: username});
 }
 
 function startRound(roundID) {

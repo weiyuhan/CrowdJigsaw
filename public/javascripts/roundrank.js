@@ -170,7 +170,6 @@ function renderProgress(coglist) {
     var option = {
         title: {
             text: 'progress',
-            left: 'center'
         },
         tooltip : {
             trigger: 'axis',
@@ -181,8 +180,9 @@ function renderProgress(coglist) {
                 }
             }
         },
+        color: ['#ee1d24', '#aba000', '#000', '#00aeef', '#2f3192', '#00a650'],
         legend: {
-            data:['correctHints','correctLinks','totalLinks','completeLinks']
+            data:['correctHints','correctLinks','totalLinks','completeLinks', 'gaCompleteLinks', 'gaCorrectLinks']
         },
         toolbox: {
             feature: {
@@ -197,8 +197,10 @@ function renderProgress(coglist) {
         },
         xAxis : [
             {
-                type : 'category',
-                boundaryGap : false,
+                type: 'time',
+                splitLine: {
+                    show: false
+                }
             }
         ],
         yAxis : [
@@ -210,57 +212,193 @@ function renderProgress(coglist) {
             {
                 name:'correctHints',
                 type:'line',
-                label: {
+                data:[],
+                symbol: 'none',
+                smooth: true,
+                lineStyle: {
                     normal: {
-                        show: true,
-                        position: 'bottom'
+                        color: '#ee1d24',
+                        width: 2
                     }
-                },
-                data:[]
+                }
             },
             {
                 name:'correctLinks',
                 type:'line',
-                label: {
+                data:[],
+                symbol: 'none',
+                smooth: true,
+                lineStyle: {
                     normal: {
-                        show: true,
-                        position: 'top'
+                        color: '#aba000',
+                        width: 2
                     }
-                },
-                data:[]
+                }
             },
             {
                 name:'totalLinks',
                 type:'line',
-                label: {
+                data:[],
+                symbol: 'none',
+                smooth: true,
+                lineStyle: {
                     normal: {
-                        show: true,
-                        position: 'top'
+                        color: '#000',
+                        width: 2
                     }
-                },
-                data:[]
+                }
             },
             {
                 name:'completeLinks',
                 type:'line',
-                label: {
+                data:[],
+                symbol: 'none',
+                smooth: true,
+                lineStyle: {
                     normal: {
-                        show: true,
-                        position: 'top'
+                        color: '#00aeef',
+                        width: 2
                     }
-                },
-                data:[]
+                }
+            },
+            {
+                name:'gaCompleteLinks',
+                type:'line',
+                data:[],
+                symbol: 'none',
+                smooth: true,
+                lineStyle: {
+                    normal: {
+                        color: '#2f3192',
+                        width: 2
+                    }
+                }
+            },
+            {
+                name:'gaCorrectLinks',
+                type:'line',
+                data:[],
+                symbol: 'none',
+                smooth: true,
+                lineStyle: {
+                    normal: {
+                        color: '#00a650',
+                        width: 2
+                    }
+                }
             }
         ]
     };
     for (var i = 0; i < coglist.length; i++) {
-        var cog = JSON.parse(coglist[i]);
-        option.series[0].data.push(cog.correctHints > 0 ? cog.correctHints: 0);
-        option.series[1].data.push(cog.correctLinks > 0 ? cog.correctLinks: 0);
-        option.series[2].data.push(cog.totalLinks > 0 ? cog.totalLinks: 0);
-        option.series[3].data.push(cog.completeLinks > 0 ? cog.completeLinks: 0);
+        var cog = coglist[i];
+        option.series[0].data.push([cog.time, cog.correctHints > 0 ? cog.correctHints: 0]);
+        option.series[1].data.push([cog.time, cog.correctLinks > 0 ? cog.correctLinks: 0]);
+        option.series[2].data.push([cog.time, cog.totalLinks > 0 ? cog.totalLinks: 0]);
+        option.series[3].data.push([cog.time, cog.completeLinks > 0 ? cog.completeLinks: 0]);
+        option.series[4].data.push([cog.time, cog.gaLinks > 0 ? cog.gaLinks: 0]);
+        option.series[5].data.push([cog.time, cog.gaCorrectLinks > 0 ? cog.gaCorrectLinks: 0]);
     }
     var progressChart = document.getElementById('progress');
+    progressChart.style.display = "block";
+    var myChart = echarts.init(progressChart);
+    // 使用刚指定的配置项和数据显示图表。
+    myChart.setOption(option);
+}
+
+function renderPrecision(coglist) {
+    var option = {
+        title: {
+            text: 'precision',
+        },
+        tooltip : {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'cross',
+                label: {
+                    backgroundColor: '#6a7985'
+                }
+            }
+        },
+        legend: {
+            data:[`all links' precision`, `strong links' precision`, `ga links' precision`]
+        },
+        toolbox: {
+            feature: {
+                saveAsImage: {}
+            }
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        xAxis : [
+            {
+                type: 'time',
+                splitLine: {
+                    show: false
+                }
+            }
+        ],
+        yAxis : [
+            {
+                type : 'value'
+            }
+        ],
+        color: ['#aba000', '#ee1d24', '#00a650'],
+        series: [
+            {
+                name:`all links' precision`,
+                type:'line',
+                data:[],
+                symbol: 'none',
+                smooth: true,
+                lineStyle: {
+                    normal: {
+                        color: '#aba000',
+                        width: 2
+                    }
+                }
+            },
+            {
+                name:`strong links' precision`,
+                type:'line',
+                data:[],
+                symbol: 'none',
+                smooth: true,
+                lineStyle: {
+                    normal: {
+                        color: '#ee1d24',
+                        width: 2
+                    }
+                }
+            },
+            {
+                name:`ga links' precision`,
+                type:'line',
+                data:[],
+                symbol: 'none',
+                smooth: true,
+                lineStyle: {
+                    normal: {
+                        color: '#00a650',
+                        width: 2
+                    }
+                }
+            }
+        ]
+    };
+    for (var i = 0; i < coglist.length; i++) {
+        var cog = coglist[i];
+        var allPrecision = cog.allPlayersCorrectLinks / cog.allPlayersTotalLinks;
+        var hintsPrecision = cog.totalHints? (cog.correctHints / cog.totalHints): 0;
+        var gaPrecision = cog.gaLinks? (cog.gaCorrectLinks / cog.gaLinks): 0;
+        option.series[0].data.push([cog.time, allPrecision]);
+        option.series[1].data.push([cog.time, hintsPrecision]);
+        option.series[2].data.push([cog.time, gaPrecision]);
+    }
+    var progressChart = document.getElementById('precision');
     progressChart.style.display = "block";
     var myChart = echarts.init(progressChart);
     // 使用刚指定的配置项和数据显示图表。
@@ -284,7 +422,7 @@ function renderDetail(username) {
     });
 }
 
-function getProgress() {
+function getProgress(endTime) {
     console.log(round_id);
     $.ajax({
         url: window.location.protocol + '//' + window.location.host + '/round/progress/' + round_id,
@@ -293,9 +431,17 @@ function getProgress() {
         cache: true,
         timeout: 5000,
         success: function (data) {
-            console.log(data);
             if (data && data.length > 0) {
-                renderProgress(data);
+                var coglist = data;
+                coglist.forEach((ele, i) => {
+                    coglist[i] = JSON.parse(ele);
+                });
+                coglist.sort((a, b) => (a.time - b.time));
+                var startTime = coglist[0].time;
+                endTime = endTime * 1000 + startTime;
+                coglist = coglist.filter((ele) => endTime >= ele.time);
+                renderProgress(coglist);
+                renderPrecision(coglist);
             }
         },
         error: function (jqXHR, textStatus, errorThrown) {}
