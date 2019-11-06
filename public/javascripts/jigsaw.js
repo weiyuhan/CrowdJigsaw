@@ -2,7 +2,6 @@ var requrl = window.location.protocol + '//' + window.location.host + '/';
 var loadReady = false;
 var socket = io.connect(requrl);
 
-
 var moveAnimationTime = 15;
 var uploadDelayTime = algorithm == 'distribute'? 5: 5;
 
@@ -941,9 +940,7 @@ function JigsawPuzzle(config) {
                 reverseDirection = 4 - direction;
             }
             showColorBorder(hintTilesIndexs[i], reverseDirection, colorIndex, true, instance.colorBorderWidth);
-
         }
-        showColorBorder(y, reverseDirection, colorIndex, pushToArray, width);
     }
 
     function showUnsureHintColorWidth(x, y, direction, colorIndex, pushToArray) {
