@@ -940,6 +940,7 @@ function JigsawPuzzle(config) {
                 reverseDirection = 4 - direction;
             }
             showColorBorder(hintTilesIndexs[i], reverseDirection, colorIndex, true, instance.colorBorderWidth);
+
         }
     }
 
@@ -1440,31 +1441,14 @@ function JigsawPuzzle(config) {
             var alreadyPlacedTile = (getTileAtCellPosition(cellPosition) != undefined);
             hasConflict = hasConflict || alreadyPlacedTile;
             if (!hasConflict) {
-                var topTile = getTileAtCellPosition(cellPosition + new Point(0, -1));
-                var rightTile = getTileAtCellPosition(cellPosition + new Point(1, 0));
-                var bottomTile = getTileAtCellPosition(cellPosition + new Point(0, 1));
-                var leftTile = getTileAtCellPosition(cellPosition + new Point(-1, 0));
-                var topLeftTile = getTileAtCellPosition(cellPosition + new Point(-1, -1));
-                var topRightTile = getTileAtCellPosition(cellPosition + new Point(1, -1));
-                var bottomLeftTile = getTileAtCellPosition(cellPosition + new Point(-1, -1));
-                var bottomRightTile = getTileAtCellPosition(cellPosition + new Point(1, 1));
-                
-                var topTileConflict = (topTile != undefined);
-                var rightTileConflict = (rightTile != undefined);
-                var bottomTileConflict = (bottomTile != undefined);
-                var leftTileConflict = (leftTile != undefined);
-                var topLeftTileConflict = (topLeftTile != undefined);
-                var topRightTileConflict = (topRightTile != undefined);
-                var bottomLeftTileConflict = (bottomLeftTile != undefined);
-                var bottomRightTileConflict = (bottomRightTile != undefined);
-                var aroundConflict = topTileConflict || bottomTileConflict || rightTileConflict || leftTileConflict
-                || topLeftTileConflict || topRightTileConflict || bottomLeftTileConflict || bottomRightTileConflict;
-
-                hasConflict = aroundConflict || hasConflict;
-
-                if(hasConflict == true)
-                    return hasConflict;
-
+                for(var j=0;j<8;j++){
+                    var checkTile = getTileAtCellPosition(cellPosition+resetplaceDirctions[j]);
+                    var checkTileConflict = (checkTile != undefined);
+                    if(checkTileConflict == true){
+                        hasConflict = true;
+                        return hasConflict;
+                    }
+                }
             }
         }
         return hasConflict;
