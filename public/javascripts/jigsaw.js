@@ -1430,10 +1430,7 @@ function JigsawPuzzle(config) {
 
         var onlyOneTile = (tiles.length == 1);
         for (var i = 0; i < tiles.length; i++) {
-            if(hasConflict)
-                return hasConflict;
             var tile = tiles[i];
-            var tileIndex = getTileIndex(tile);
 
             var cellPosition = centerCellPosition + tile.relativePosition;
             var roundPosition = cellPosition * instance.tileWidth;
@@ -1445,8 +1442,7 @@ function JigsawPuzzle(config) {
                     var checkTile = getTileAtCellPosition(cellPosition+resetplaceDirctions[j]);
                     var checkTileConflict = (checkTile != undefined);
                     if(checkTileConflict == true){
-                        hasConflict = true;
-                        return hasConflict;
+                        return true;
                     }
                 }
             }
@@ -3081,7 +3077,6 @@ function JigsawPuzzle(config) {
                 }
             }
         }
-
         if (!instance.tiles) {
             return;
         }
@@ -3119,7 +3114,6 @@ function JigsawPuzzle(config) {
                 }
             }
         }
-
         if (instance.groupsArray && instance.groupsArray.length > 0) {
             var groupsArray = instance.groupsArray;
             var done = true;
@@ -3145,7 +3139,6 @@ function JigsawPuzzle(config) {
                     for (var j = 0; j < group.groupTiles.length; j++) {
                         var tile = group.groupTiles[j];
                         placeTile(tile, group.destination + tile.relativePosition);
-                        //console.log("placeTile:",tile);
                     }
                 }
                 normalizeTiles();
@@ -3153,37 +3146,6 @@ function JigsawPuzzle(config) {
                 instance.groupsArray = undefined;
             }
         }
-
-
-        if (instance.singleArray && instance.singleArray.length > 0) {
-            var singleArray = instance.singleArray;
-            var done = true;
-            for (var i = 0; i < singleArray.length; i++) {
-                var single = singleArray[i];
-                if (!single || single.times == 0) {
-                    continue;
-                }
-                single.times -= 1;
-                done = (single.times == 0);
-                var tile = single.tile;
-                tile.position += single.desDiff;
-            }
-            if (done) {
-                for (var i = 0; i < singleArray.length; i++) {
-                    var single = singleArray[i];
-                    if (!single) {
-                        continue;
-                    }
-                    var tile = single.tile;
-                    placeTile(tile, single.destination);
-                    //console.log("placeTile:",tile);
-                }
-                normalizeTiles();
-                instance.hintsShowing = false;
-                instance.singleArray = undefined;
-            }
-        }
-
     }
 
     this.dragTile = function (delta, ctrl) {
@@ -3445,11 +3407,11 @@ function JigsawPuzzle(config) {
     }
 
     /*
-    *找到位置
+    *找到位置并聚拢
     */
-    function findDestination(group,centerx,centery,disRatio) {
-        var centerxno = Math.round(centerx/instance.tileWidth);
-        var centeryno = Math.round(centery/instance.tileWidth);
+    function clusterTile(group,centerx,centery,disRatio) {
+        var centerCellPositionX = Math.round(centerx/instance.tileWidth);
+        var centerCellPositionY = Math.round(centery/instance.tileWidth);
         var origindis = group.dis;
         var newdis = 0;
 
@@ -3463,7 +3425,7 @@ function JigsawPuzzle(config) {
             group.groupTiles[k].originPosition = group.groupTiles[k].cellPosition;
         }
         //已经在中间了
-        if(Math.abs(prex-centerxno)<=1 && Math.abs(prey-centeryno)<=1){     
+        if(Math.abs(prex-centerCellPositionX)<=1 && Math.abs(prey-centerCellPositionY)<=1){     
             group.destination = firstTile.position/instance.tileWidth;
             group.times = 60;
             group.desDiff = (group.destination * instance.tileWidth - 
@@ -3504,7 +3466,7 @@ function JigsawPuzzle(config) {
         while(isConflicted != true){
             prex = desx;
             prey = desy;
-            if(Math.abs(desx-centerxno)<=1 && Math.abs(desy-centeryno)<=1 && isConflicted == false){
+            if(Math.abs(desx-centerCellPositionX)<=1 && Math.abs(desy-centerCellPositionY)<=1 && isConflicted == false){
                 break;
             }
             rawoffsetx = offsetdx;
@@ -3541,38 +3503,11 @@ function JigsawPuzzle(config) {
         
     }
     
-    function findClusterCenter(left,right,mostTileSquare){
-        var squareLeft = new Point(0,0);
-        var maxNum=0;
-        for(var i=left.y; i<=right.y;i+=mostTileSquare.y){
-            for(var j=left.x;j<=right.x;j+=mostTileSquare.x){
-                var squareTile = 0;
-                for(var k=0;k<mostTileSquare.y;k++){
-                    for(var l=0;l<mostTileSquare.x;l++){
-                        var tmpTile = getTileAtCellPosition(new Point(j+l,i+k));
-                        if(tmpTile!=undefined){
-                            squareTile++;
-                        }
-                        
-                    }
-                }
-                if(maxNum<squareTile){
-                    maxNum=squareTile;
-                    squareLeft.x = j;
-                    squareLeft.y = i;
-                }
-                
-            }
-        }
-
-        return squareLeft;
-    }
     this.resetPlace = function () {
         normalizeTiles();
         instance.hintsShowing = true;
 
         var groupsArray = new Array();
-        var singleArray = new Array();
         var minCenterDis = null;
         var minCenterGroup = null;
         var puzzle_leftTopPoint = new Point(instance.tiles[0].cellPosition.x,instance.tiles[0].cellPosition.y);
@@ -3644,7 +3579,6 @@ function JigsawPuzzle(config) {
             groupsArray.push(group);
         }
 
-
         var width = instance.puzzleImage.size.width;
         var height = instance.puzzleImage.size.height;
         for(var i = 0; i < instance.tiles.length; i++){
@@ -3675,7 +3609,7 @@ function JigsawPuzzle(config) {
             if(i>0){
                 disRatio = (groupsArray[i-1].dis==0?1:groupsArray[i].dis / groupsArray[i-1].dis);
             }
-            findDestination(groupsArray[i],clusterCenter.x*instance.tileWidth,clusterCenter.y*instance.tileWidth,disRatio);
+            clusterTile(groupsArray[i],clusterCenter.x*instance.tileWidth,clusterCenter.y*instance.tileWidth,disRatio);
             for(var k=0;k<groupsArray[i].groupTiles.length;k++){
                 groupsArray[i].groupTiles[k].picking = false;
             }
@@ -3686,7 +3620,6 @@ function JigsawPuzzle(config) {
         }
         
         instance.groupsArray = groupsArray;
-        instance.singleArray = singleArray;
         //normalizeTiles();
     }
 }
