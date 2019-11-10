@@ -3192,11 +3192,10 @@ function JigsawPuzzle(config) {
         if(tile.picking == true)
             return;
         tile.relativePosition = relativePosition;
-        tile.originPosition = tile.cellPosition;
         tile.picking = true;
         array.push(tile);
         for (var i = 0; i < 8; i++) {
-            var newTile = getTileAtCellPosition(tile.originPosition + resetplaceDirctions[i]);
+            var newTile = getTileAtCellPosition(tile.cellPosition + resetplaceDirctions[i]);
             if (newTile != undefined) {
                 resetplaceDFSTiles(newTile, array, relativePosition+resetplaceDirctions[i]);
             }
