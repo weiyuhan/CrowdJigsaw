@@ -14,7 +14,7 @@ $(document).ready(function () {
 });
 $("#loading").fadeOut();
 
-if (players_num == 1 || roundID < 0) {
+if (roundID < 0) {
     $('#help_button').css('display', 'none');
     $('#guess_button').css('display', 'none');
     $('#share_button').css('display', 'none');
@@ -563,7 +563,7 @@ function JigsawPuzzle(config) {
 
         if (!instance.saveTilePositions) {
             saveGame();
-            if (players_num > 1) {
+            if (players_num > 0) {
                 $('#pregame_survey').modal({
                     keyboard: false,
                     backdrop: 'static',
@@ -1678,9 +1678,6 @@ function JigsawPuzzle(config) {
         }
     }
     this.askHelp = function() {
-        if(players_num == 1){
-            return;
-        }
         if (ctrlDown || mousedowned || instance.gameFinished) {
             return;
         }
@@ -1715,7 +1712,6 @@ function JigsawPuzzle(config) {
 
         var event_name = algorithm == 'distribute' ? 
             'distributed_fetchHints' : 'fetchHints';
-        console.log(event_name);
         socket.emit(event_name, {
             "round_id": roundID,
             "player_name": player_name,
@@ -1781,7 +1777,6 @@ function JigsawPuzzle(config) {
     }
 
     socket.on('proactiveHints', function(data) {
-        console.log(data);
         instance.singleArray = new Array();
         processProactiveHints(data);
         if (instance.singleArray.length > 0) {
@@ -1797,7 +1792,6 @@ function JigsawPuzzle(config) {
             }
         }
         if (data.edgeMap) {
-            console.log(data.edgeMap);
             instance.edgeMap = data.edgeMap;
             showVulnerableEdges();
         }
@@ -2048,7 +2042,7 @@ function JigsawPuzzle(config) {
                 player_name: player_name,
                 algorithm: algorithm,
                 round_id: roundID,
-                time: Date.now(),
+                time: parseInt(Date.now() / 1000),
                 edges: edges,
                 tilesPerRow: tilesPerRow,
                 tilesPerColumn: tilesPerColumn,
@@ -2083,9 +2077,6 @@ function JigsawPuzzle(config) {
     }
 
     function uploadGraphData(){
-        if(players_num == 1){
-            instance.subGraphDataQueue.length = new Array();
-        }
         if(instance.subGraphDataQueue.length == 0){
             return;
         }
@@ -2095,8 +2086,17 @@ function JigsawPuzzle(config) {
             var olderGraphData = instance.subGraphDataQueue[i];
             for (var j = i + 1; j < instance.subGraphDataQueue.length; j++) {
                 var newerGraphData = instance.subGraphDataQueue[j];
+                if (newerGraphData.is_hint !== olderGraphData.is_hint) {
+                    continue;
+                }
                 for (var key in olderGraphData.edges){
                     if (key in newerGraphData.edges){
+                        olderGraphData.edges[key] = newerGraphData.edges[key];
+                        delete newerGraphData.edges[key];
+                    }
+                }
+                if (olderGraphData.time === newerGraphData.time) {
+                    for (var key in newerGraphData.edges){
                         olderGraphData.edges[key] = newerGraphData.edges[key];
                         delete newerGraphData.edges[key];
                     }
@@ -2106,7 +2106,7 @@ function JigsawPuzzle(config) {
         
         while (instance.subGraphDataQueue.length > 0) {
             var param = instance.subGraphDataQueue[0];
-            if(instance.gameFinished || (nowTime - param.time) / 1000 >= uploadDelayTime){
+            if(instance.gameFinished || parseInt(nowTime / 1000 - param.time) >= uploadDelayTime){
                 edges_count = Object.getOwnPropertyNames(param.edges).length;
                 if(edges_count > 0){
                     var event_name = algorithm == 'distribute' ?
@@ -2290,7 +2290,7 @@ function JigsawPuzzle(config) {
     }
 
     function getHints(round_id, selectedTileIndexes) {
-        if (players_num == 1 || roundID < 0) {
+        if (roundID < 0) {
             return;
         }
         // var hintTileIndexes=new Array(-1,-1,-1,-1);
@@ -2301,12 +2301,10 @@ function JigsawPuzzle(config) {
                 getHintsIndex.push(i);
             }
         }
-        if (getHintsIndex.length > 0 && players_num > 1) {
+        if (getHintsIndex.length > 0) {
             var event_name = algorithm == 'distribute' ? 
                 'distributed_getHintsAround' : 'getHintsAround';
-            //console.log(instance.getHintsArray, getHintsIndex);
             socket.emit(event_name, {
-            //socket.emit("distributed_fetchHints", {
                 "round_id": round_id,
                 "player_name": player_name,
                 "selectedTileIndexes": selectedTileIndexes,
@@ -2574,7 +2572,6 @@ function JigsawPuzzle(config) {
     }
 
     socket.on('distributed_proactiveHints', function(data) {
-        console.log(data);
         instance.edgeMap = computeEdgeProbability(data.edge_sup, data.edge_opp);
         if (data.players && data.players.length > 0) {
             for (var i = 0; i < data.players.length; i++) {
@@ -2602,7 +2599,6 @@ function JigsawPuzzle(config) {
                     if (!single) {
                         continue;
                     }
-                    console.log(single.destination, single.originPosition);
                     var single = instance.singleArray[i];
                     var tile = single.tile;
                     tile.position = single.originPosition;
@@ -2613,7 +2609,6 @@ function JigsawPuzzle(config) {
     });
 
     socket.on('distributed_reactiveHints', function(data) {
-        console.log(data);
         instance.edgeMap = computeEdgeProbability(data.edge_sup, data.edge_opp);
         if (data.players && data.players.length > 0) {
             for (var i = 0; i < data.players.length; i++) {
@@ -2627,7 +2622,6 @@ function JigsawPuzzle(config) {
             data.players.sort(sortPlayersByQuality);
             instance.singleArray = new Array();
             for (var i = 0; i < data.players.length; i++) {
-                console.log(data.players[i].quality);
                 instance.hintedFrom = data.players[i].from;
                 var hints = edgesToHints(data.players[i].edges);
                 data.sureHints = hints;
@@ -2643,7 +2637,6 @@ function JigsawPuzzle(config) {
                     if (!single) {
                         continue;
                     }
-                    console.log(single.destination, single.originPosition);
                     var tile = single.tile;
                     tile.position = single.originPosition;
                 }
@@ -2708,7 +2701,6 @@ function JigsawPuzzle(config) {
     //socket.on("reactiveHints", processReactiveHints);
 
     socket.on('reactiveHints', function(data) {
-        console.log(data);
         instance.singleArray = new Array();
         processReactiveHints(data);
         if (instance.singleArray.length > 0) {
@@ -2724,7 +2716,6 @@ function JigsawPuzzle(config) {
             }
         }
         if (data.edgeMap) {
-            console.log(data.edgeMap);
             instance.edgeMap = data.edgeMap;
             showVulnerableEdges();
         }
@@ -2803,7 +2794,6 @@ function JigsawPuzzle(config) {
                 tile.picking = false;
             }
             if(shouldSave){
-                console.log("success move away", moveDir);
                 var delta = moveDir * (tilesPerRow / 2) * instance.tileWidth;
                 var currentScroll = view.currentScroll + delta * instance.currentZoom;
                 view.scrollBy(currentScroll);
@@ -2977,7 +2967,6 @@ function JigsawPuzzle(config) {
 
             for (var i = 0; i < groupTiles.length; i++) {
                 var hintTile = groupTiles[i];
-                console.log(new Point(hintTile.cellPosition));
                 var hintTileIndex = getTileIndex(hintTile);
                 var des = correctCellposition + hintTile.relativePosition;
 
@@ -3503,7 +3492,7 @@ function JigsawPuzzle(config) {
     }
     
     this.resetPlace = function () {
-        normalizeTiles();
+                normalizeTiles();
         instance.hintsShowing = true;
 
         var groupsArray = new Array();
@@ -3626,7 +3615,7 @@ function JigsawPuzzle(config) {
  * Game Finish
  */
 (function () {
-    if(players_num == 1){
+    if(players_num == 0){
         $('.rating-body').css('display', 'none');
     }
     else{
@@ -3651,7 +3640,7 @@ function JigsawPuzzle(config) {
         // player's rating for the hint(what he thinks about the function)
         var rating = $("#rating2").val();
         sendRecord(true, rating);
-        if (roundID >= 0 && players_num > 0) {
+        if (roundID >= 0) {
             var extraData = {
                 rating: rating,
                 nextGame: $('#next_game_yes2').prop("checked"), 
@@ -3684,7 +3673,7 @@ function JigsawPuzzle(config) {
     $('#apply-button').click(function (event) {
         var rating = $("#rating").val();
         sendRecord(false, rating);
-        if (roundID >= 0 && players_num > 0) {
+        if (roundID >= 0) {
             var extraData = {
                 rating: rating,
                 nextGame: $('#next_game_yes').prop("checked"), 
