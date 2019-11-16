@@ -1431,12 +1431,10 @@ function JigsawPuzzle(config) {
         var onlyOneTile = (tiles.length == 1);
         for (var i = 0; i < tiles.length; i++) {
             var tile = tiles[i];
-
             var cellPosition = centerCellPosition + tile.relativePosition;
-            var roundPosition = cellPosition * instance.tileWidth;
-
+            
             var alreadyPlacedTile = (getTileAtCellPosition(cellPosition) != undefined);
-            hasConflict = hasConflict || alreadyPlacedTile;
+            hasConflict = alreadyPlacedTile;
             if (!hasConflict) {
                 for(var j=0;j<8;j++){
                     var checkTile = getTileAtCellPosition(cellPosition+resetplaceDirctions[j]);
@@ -1445,6 +1443,8 @@ function JigsawPuzzle(config) {
                         return true;
                     }
                 }
+            }else{
+                return true;
             }
         }
         return hasConflict;
@@ -1584,7 +1584,30 @@ function JigsawPuzzle(config) {
         tile.cellPosition = cellPosition;
         tile.relativePosition = new Point(0, 0);
     }
-
+    function prePlaceTile(tile, cellPosition) {
+        var roundPosition = cellPosition * instance.tileWidth;
+        if (instance.hintsShowing) {
+            tile.preStep = instance.steps - 1;
+        }
+        else {
+            tile.preStep = instance.steps;
+        }
+        tile.preCellPosition = tile.cellPosition;
+        tile.position = roundPosition;
+        if (tile.originPosition) {
+            if (cellPosition == tile.originPosition) {
+                tile.positionMoved = false;
+            }
+            else {
+                tile.positionMoved = true;
+            }
+        }
+        else {
+            tile.positionMoved = false;
+        }
+        tile.cellPosition = cellPosition;
+        //tile.relativePosition = new Point(0, 0);
+    }
     this.undoNextStep = function () {
         instance.undoing = true;
 
@@ -3034,14 +3057,12 @@ function JigsawPuzzle(config) {
             }
             var img = hitResult.item;
             var tile = img.parent.parent;
-
             if (!tile.picking) {
                 retTile = tile;
             }
         }
         return retTile;
     }
-
     this.animation_turn = 0;
     this.animation = function () {
         this.animation_turn += 1;
@@ -3423,23 +3444,22 @@ function JigsawPuzzle(config) {
         //移动方向
         if(group.xdis<0){
             //dx = 45*group.cosa;
-            dx = 128*group.cosa*disRatio;
+            dx = 64 * group.cosa;
         }else if(group.xdis>0){
             //dx = -45*group.cosa;
-            dx = -128*group.cosa*disRatio;
+            dx = -64 * group.cosa;
         }else{
             dx=0;
         }
         if(group.ydis<0){
             //dy = 45*group.sina;
-            dy= 128 * group.sina*disRatio;
+            dy= 64 * group.sina;
         }else if(group.ydis>0){
             //dy = -45*group.sina;
-            dy=-128*group.sina*disRatio;
+            dy=-64 * group.sina;
         }else{
             dy = 0;
         }
-          
         var desx = prex;
         var desy = prey;
         var des = new Point(desx,desy);
@@ -3454,7 +3474,7 @@ function JigsawPuzzle(config) {
         while(isConflicted != true){
             prex = desx;
             prey = desy;
-            if(Math.abs(desx-centerCellPositionX)<=1 && Math.abs(desy-centerCellPositionY)<=1 && isConflicted == false){
+            if(Math.abs(desx-centerCellPositionX)<=1 && Math.abs(desy-centerCellPositionY)<=1){
                 break;
             }
             rawoffsetx = offsetdx;
@@ -3464,31 +3484,26 @@ function JigsawPuzzle(config) {
             desx = Math.round((group.x*instance.tileWidth+offsetdx)/instance.tileWidth);
             desy = Math.round((group.y*instance.tileWidth+offsetdy)/instance.tileWidth);
             var newdis = Math.sqrt((desx*instance.tileWidth-centerx)*(desx*instance.tileWidth-centerx)+(desy*instance.tileWidth-centery)*(desy*instance.tileWidth-centery));
-            if(newdis>=origindis){
+            if(newdis>origindis){
                 break;
             }
-            des.x = desx;
-            des.y = desy;
             origindis = newdis;
             isConflicted = checkResetPlaceConflict(group.groupTiles,new Point(Math.round((firstTile.position.x+offsetdx)/instance.tileWidth),
                 Math.round((firstTile.position.y+offsetdy)/instance.tileWidth)));
 
         }
         des.x = Math.round((group.groupTiles[0].position.x+rawoffsetx)/instance.tileWidth);
-        des.y = Math.round((group.groupTiles[0].position.y+rawoffsety)/instance.tileWidth);
-
+        des.y = Math.round((group.groupTiles[0].position.y+rawoffsety)/instance.tileWidth);;
         group.destination = des;
         group.times = 60;
         group.desDiff = (group.destination * instance.tileWidth - 
                 group.groupTiles[0].position) / group.times;
-
         //放置合法拼图块
         for(var k=0;k<group.groupTiles.length;k++){ 
-            group.groupTiles[k].position = new Point(Math.round(group.groupTiles[k].position.x+rawoffsetx),
-                Math.round(group.groupTiles[k].position.y+rawoffsety));
-        }
+            prePlaceTile(group.groupTiles[k],new Point(Math.round((group.groupTiles[k].position.x+rawoffsetx)/instance.tileWidth),
+                Math.round((group.groupTiles[k].position.y+rawoffsety)/instance.tileWidth)));
+        }  
 
-        
     }
     
     this.resetPlace = function () {
@@ -3498,9 +3513,6 @@ function JigsawPuzzle(config) {
         var groupsArray = new Array();
         var minCenterDis = null;
         var minCenterGroup = null;
-        var puzzle_leftTopPoint = new Point(instance.tiles[0].cellPosition.x,instance.tiles[0].cellPosition.y);
-        var puzzle_rightBottomPoint = new Point(instance.tiles[0].cellPosition.x,instance.tiles[0].cellPosition.y);
-        var mostTileSquare = new Point(puzzle.tilesPerRow,puzzle.tilesPerColumn);
         var maxGroupNum = 0;
         var maxGroupleftTopPoint = null;
         var maxGrouprightBottomPoint = null;
@@ -3534,11 +3546,6 @@ function JigsawPuzzle(config) {
                 maxGroupleftTopPoint = leftTopPoint;
                 maxGrouprightBottomPoint = rightBottomPoint;
             }
-
-            puzzle_leftTopPoint.x = Math.min(leftTopPoint.x, puzzle_leftTopPoint.x);
-            puzzle_leftTopPoint.y = Math.min(leftTopPoint.y, puzzle_leftTopPoint.y);
-            puzzle_rightBottomPoint.x = Math.max(rightBottomPoint.x, puzzle_rightBottomPoint.x);
-            puzzle_rightBottomPoint.y = Math.max(rightBottomPoint.y, puzzle_rightBottomPoint.y);
 
             var nodes = groupTiles.length;
             links /= 2;
@@ -3588,9 +3595,11 @@ function JigsawPuzzle(config) {
         groupsArray.sort(function (a, b) {
             return a.dis - b.dis;
         });
-        
+
         var disRatio = 1;
         for(var i=0;i<groupsArray.length;i++){
+            if(groupsArray.length == maxGroupNum)
+                continue;
             for(var k=0;k<groupsArray[i].groupTiles.length;k++){
                 groupsArray[i].groupTiles[k].picking = true;
             }
