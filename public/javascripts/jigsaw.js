@@ -3490,7 +3490,6 @@ function JigsawPuzzle(config) {
             origindis = newdis;
             isConflicted = checkResetPlaceConflict(group.groupTiles,new Point(Math.round((firstTile.position.x+offsetdx)/instance.tileWidth),
                 Math.round((firstTile.position.y+offsetdy)/instance.tileWidth)));
-
         }
         des.x = Math.round((group.groupTiles[0].position.x+rawoffsetx)/instance.tileWidth);
         des.y = Math.round((group.groupTiles[0].position.y+rawoffsety)/instance.tileWidth);;
@@ -3595,10 +3594,10 @@ function JigsawPuzzle(config) {
         groupsArray.sort(function (a, b) {
             return a.dis - b.dis;
         });
-
+        
         var disRatio = 1;
         for(var i=0;i<groupsArray.length;i++){
-            if(groupsArray.length == maxGroupNum)
+            if(groupsArray[i].length == maxGroupNum)
                 continue;
             for(var k=0;k<groupsArray[i].groupTiles.length;k++){
                 groupsArray[i].groupTiles[k].picking = true;
