@@ -708,7 +708,11 @@ function JigsawPuzzle(config) {
     }
 
     this.focusToCenter = function () {
-        view.scrollBy(instance.centerPoint - view.center / 1.25);
+        instance.currentZoom = 1;
+        /Android|webOS|iPhone|iPod|BlackBerry/i.test(navigator.userAgent) ? instance.zoom(-0.5) : instance.zoom(-0.1);
+        for (var i = 0; i < 10; i++) {
+            view.scrollBy(instance.centerPoint - view.center / 1.25);
+        }
     }
 
     this.calcHintedTile = function () {
@@ -3506,7 +3510,7 @@ function JigsawPuzzle(config) {
     }
     
     this.resetPlace = function () {
-                normalizeTiles();
+        normalizeTiles();
         instance.hintsShowing = true;
 
         var groupsArray = new Array();
@@ -3578,7 +3582,6 @@ function JigsawPuzzle(config) {
         for(var i = 0; i < instance.tiles.length; i++){
             instance.tiles[i].picking = false;   
         }
-
         var clusterCenter = new Point(0,0);
 
         clusterCenter.x = (maxGroupleftTopPoint.x+maxGrouprightBottomPoint.x)/2;
@@ -3595,10 +3598,29 @@ function JigsawPuzzle(config) {
             return a.dis - b.dis;
         });
         
-        var disRatio = 1;
+        var clusterCenter = new Point(0,0);
+
+        clusterCenter.x = (maxGroupleftTopPoint.x+maxGrouprightBottomPoint.x)/2;
+        clusterCenter.y = (maxGroupleftTopPoint.y+maxGrouprightBottomPoint.y)/2;
+
         for(var i=0;i<groupsArray.length;i++){
-            if(groupsArray[i].length == maxGroupNum)
+            groupsArray[i].xdis = (groupsArray[i].x-clusterCenter.x)*instance.tileWidth;
+            groupsArray[i].ydis = (groupsArray[i].y-clusterCenter.y)*instance.tileWidth;
+            groupsArray[i].dis = Math.sqrt(groupsArray[i].xdis * groupsArray[i].xdis + groupsArray[i].ydis * groupsArray[i].ydis);
+            groupsArray[i].cosa = (groupsArray[i].dis==0?0:Math.abs(groupsArray[i].xdis)/groupsArray[i].dis);
+            groupsArray[i].sina = (groupsArray[i].dis==0?0:Math.abs(groupsArray[i].ydis)/groupsArray[i].dis);
+        }
+        groupsArray.sort(function (a, b) {
+            return a.dis - b.dis;
+        });
+
+        var disRatio = 1;
+        var hasCenter = false;
+        for(var i=0;i<groupsArray.length;i++){
+            if(groupsArray[i].length == maxGroupNum && hasCenter == false){
+                hasCenter = true;
                 continue;
+            }
             for(var k=0;k<groupsArray[i].groupTiles.length;k++){
                 groupsArray[i].groupTiles[k].picking = true;
             }
