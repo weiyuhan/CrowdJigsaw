@@ -3600,7 +3600,11 @@ function JigsawPuzzle(config) {
 
         clusterCenter.x = centerGroup[0].x;
         clusterCenter.y = centerGroup[0].y;
+<<<<<<< HEAD
         instance.centerPoint = clusterCenter*instance.tileWidth;
+=======
+
+>>>>>>> 5daa8f2666c2320dbf2baa20825b93784d575ff7
         for(var i=0;i<groupsArray.length;i++){
             groupsArray[i].xdis = (groupsArray[i].x-clusterCenter.x)*instance.tileWidth;
             groupsArray[i].ydis = (groupsArray[i].y-clusterCenter.y)*instance.tileWidth;
