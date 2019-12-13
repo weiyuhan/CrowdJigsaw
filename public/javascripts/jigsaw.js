@@ -3448,19 +3448,19 @@ function JigsawPuzzle(config) {
         //移动方向
         if(group.xdis<0){
             //dx = 45*group.cosa;
-            dx = 64 * group.cosa;
+            dx = 64 * group.cosa*Math.sqrt(group.groupTiles.length);
         }else if(group.xdis>0){
             //dx = -45*group.cosa;
-            dx = -64 * group.cosa;
+            dx = -64 * group.cosa*Math.sqrt(group.groupTiles.length);
         }else{
             dx=0;
         }
         if(group.ydis<0){
             //dy = 45*group.sina;
-            dy= 64 * group.sina;
+            dy= 64 * group.sina*Math.sqrt(group.groupTiles.length);
         }else if(group.ydis>0){
             //dy = -45*group.sina;
-            dy=-64 * group.sina;
+            dy=-64 * group.sina*Math.sqrt(group.groupTiles.length);
         }else{
             dy = 0;
         }
@@ -3492,8 +3492,10 @@ function JigsawPuzzle(config) {
                 break;
             }
             origindis = newdis;
-            isConflicted = checkResetPlaceConflict(group.groupTiles,new Point(Math.round((firstTile.position.x+offsetdx)/instance.tileWidth),
-                Math.round((firstTile.position.y+offsetdy)/instance.tileWidth)));
+            if(prex != desx || prey != desy){
+                isConflicted = checkResetPlaceConflict(group.groupTiles,new Point(Math.round((firstTile.position.x+offsetdx)/instance.tileWidth),
+                    Math.round((firstTile.position.y+offsetdy)/instance.tileWidth)));
+            }
         }
         des.x = Math.round((group.groupTiles[0].position.x+rawoffsetx)/instance.tileWidth);
         des.y = Math.round((group.groupTiles[0].position.y+rawoffsety)/instance.tileWidth);;
@@ -3631,7 +3633,7 @@ function JigsawPuzzle(config) {
         }
         
         instance.groupsArray = groupsArray;
-        this.focusToCenter();
+        instance.focusToCenter();
         //normalizeTiles();
     }
 }
