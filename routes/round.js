@@ -10,7 +10,7 @@ var CogModel = require('../models/cog').Cog;
 var util = require('./util.js');
 var dev = require('../config/dev');
 var images = require("images");
-const redis = require('redis').createClient();
+const redis = require('../redis');
 const Promise = require('bluebird');
 
 async function saveScore(round_id) {
@@ -136,7 +136,7 @@ module.exports = function (io) {
          * Create a new round
          */
         socket.on('newRound', function (data) {
-            if (data.players_num > 1 && 
+            if (data.players_num > 100 && 
                 data.admin != true && data.key != dev.admin_key) {
                 console.log(data.key, dev.admin_key);
                 socket.emit('create_round_failed', {
@@ -205,12 +205,16 @@ module.exports = function (io) {
                             await redis.setAsync(redis_key, JSON.stringify(doc));
                             await redis.delAsync('round:' + doc.round_id + ':scoreboard');
                             await redis.delAsync('round:' + doc.round_id + ':players');
-                            await addActiveRound(doc.round_id, doc.players_num);
-                           
+
+                            if (data.players_num > 1) {
+                                await addActiveRound(doc.round_id, doc.players_num);
+                            }
+                            
                             redis_key = 'round:' + doc.round_id + ':players';
                             await redis.saddAsync(redis_key, data.username);
-                            await redis.saddAsync('active_players', data.username);
-
+                            if (data.players_num > 1) {
+                                await redis.saddAsync('active_players', data.username);
+                            }
                             console.log(data.username + ' creates Round' + index);
                             let players = [data.username];
                             let active_players = await redis.smembersAsync('active_players');

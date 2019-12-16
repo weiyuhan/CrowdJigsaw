@@ -11,7 +11,7 @@ var crypto = require('crypto');
 var util = require('./util.js');
 var PythonShell = require('python-shell');
 
-const redis = require('redis').createClient();
+const redis = require('../redis');
 const Promise = require('bluebird');
 
 const SECRET = "CrowdIntel";
@@ -243,6 +243,7 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
         admin: 1,
         total_score: 1,
         round_attend: 1,
+        after_class_score: 1,
     };
     UserModel.findOne(selectStr, fields, function (err, doc) {
         if (err) {
@@ -256,9 +257,11 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
                     admin: doc.admin,
                     total_score: doc.total_score || 0,
                     round_attend: doc.round_attend || 0,
+                    after_class_score: doc.after_class_score || 0,
                     multiPlayer: dev.multiPlayer,
                     multiPlayerServer: dev.multiPlayerServer,
                     singlePlayerServer: dev.singlePlayerServer,
+                    normalPlayerCreateRound: dev.normalPlayerCreateRound,
                 });
             }
         }
@@ -576,6 +579,7 @@ router.route('/records').all(LoginFirst).get(function (req, res) {
                 _id: 0,
                 total_score: 1,
                 round_attend: 1,
+                after_class_score: 1,
             };
             UserModel.findOne(condition, fields, function (err, doc) {
                 if (err) {
@@ -588,6 +592,7 @@ router.route('/records').all(LoginFirst).get(function (req, res) {
                             username: req.session.user.username,
                             total_score: doc.total_score || 0,
                             round_attend: doc.round_attend || 0,
+                            after_class_score: doc.after_class_score || 0,
                             Allrecords: resp
                         });
                     }

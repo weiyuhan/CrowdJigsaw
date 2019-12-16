@@ -12,7 +12,6 @@ $('#undo_button').css('display', 'none');
 $(document).ready(function () {
     loadReady = true;
 });
-$("#loading").fadeOut();
 
 if (roundID < 0) {
     $('#help_button').css('display', 'none');
@@ -26,24 +25,6 @@ $('#share_info input').change(function () {
     }
     else {
         $('#share_info_reason_wraper').css('display', 'none');
-    }
-});
-
-$('#next_game input').change(function () {
-    if ($('#next_game_no').prop("checked")) {
-        $('#next_game_reason_wraper').css('display', 'block');
-    }
-    else {
-        $('#next_game_reason_wraper').css('display', 'none');
-    }
-});
-
-$('#next_game2 input').change(function () {
-    if ($('#next_game_no2').prop("checked")) {
-        $('#next_game_reason_wraper2').css('display', 'block');
-    }
-    else {
-        $('#next_game_reason_wraper2').css('display', 'none');
     }
 });
 
@@ -70,7 +51,6 @@ Array.prototype.remove = function (start, end) {
 view.currentScroll = new Point(0, 0);
 var scrollVector = new Point(0, 0);
 var scrollMargin = 32;
-console.log(tilesPerRow, tilesPerColumn, tileWidth);
 $('#puzzle-image').attr('src', imgSrc);
 
 var imgWidth = $('.puzzle-image').css('width').replace('px', '');
@@ -347,9 +327,6 @@ function JigsawPuzzle(config) {
 
     socket.on('gameSaved', function (data) {
         if (data.success == true && data.round_id == roundID && data.player_name == player_name) {
-            console.log("Saved.");
-        } else {
-            console.log(data.err);
         }
     });
 
@@ -586,6 +563,15 @@ function JigsawPuzzle(config) {
         }
 
         instance.gameStarted = true;
+        instance.focusToCenter();
+        var canvasLayer = document.getElementById("canvas");
+        canvasLayer.style.background = "#dddddd";
+        var background = new Shape.Rectangle({
+            rectangle: new Rectangle(0, 0, 63 * tileWidth, 63 * tileWidth),
+            fillColor: 'white'
+        });
+        background.sendToBack();
+        $("#loading").fadeOut();
     }
 
     function refreshAroundTiles(tile, beHinted) {
@@ -708,10 +694,12 @@ function JigsawPuzzle(config) {
     }
 
     this.focusToCenter = function () {
-        instance.currentZoom = 1;
-        /Android|webOS|iPhone|iPod|BlackBerry/i.test(navigator.userAgent) ? instance.zoom(-0.5) : instance.zoom(-0.1);
+        if (instance.currentZoom > 0.9) {
+            instance.currentZoom = 1;
+            /Android|webOS|iPhone|iPod|BlackBerry/i.test(navigator.userAgent) ? instance.zoom(-0.5) : instance.zoom(-0.1);
+        }
         for (var i = 0; i < 10; i++) {
-            view.scrollBy(instance.centerPoint - view.center / 1.25);
+            view.scrollBy(instance.centerPoint - view.center / 1 + new Point(window.innerWidth / 3.5, window.innerHeight / 20));
         }
     }
 
@@ -818,6 +806,7 @@ function JigsawPuzzle(config) {
             return;
         }
         // randomly select tiles and place them one by one 
+        var offset = new Point(32 - tilesPerColumn + 1, 32 - tilesPerRow / 2);
         for (var y = 0; y < yTileCount; y++) {
             for (var x = 0; x < xTileCount; x++) {
 
@@ -826,14 +815,7 @@ function JigsawPuzzle(config) {
                 var tile = tiles[index2];
                 tileIndexes.remove(index1, 1);
 
-                var position = view.center -
-                    new Point(instance.tileWidth, instance.tileWidth / 2) +
-                    new Point(instance.tileWidth * (x * 2 + ((y % 2))), instance.tileWidth * (y * 1)) -
-                    new Point(instance.puzzleImage.size.width, instance.puzzleImage.size.height / 2);
-
-                var cellPosition = new Point(
-                    Math.round(position.x / instance.tileWidth),//returns int closest to arg
-                    Math.round(position.y / instance.tileWidth));
+                var cellPosition = new Point(x * 2 + (y % 2), y) + offset;
 
                 tile.position = cellPosition * instance.tileWidth; // round position(actual (x,y) in the canvas)
                 tile.cellPosition = cellPosition; // cell position(in which grid the tile is)
@@ -923,7 +905,6 @@ function JigsawPuzzle(config) {
 
                 // tile fixed index/unique id
                 tile.findex = y * xTileCount + x;
-                //console.log(tile.findex);
                 tiles.push(tile);
                 tile.name = "tile-" + tileIndexes.length;
                 tileIndexes.push(tileIndexes.length);
@@ -1256,7 +1237,6 @@ function JigsawPuzzle(config) {
 
                 // tile fixed index/unique id
                 tile.findex = y * xTileCount + x;
-                //console.log(tile.findex);
                 tiles.push(tile);
                 tile.name = "tile-" + tileIndexes.length;
                 tileIndexes.push(tileIndexes.length);
@@ -1288,7 +1268,7 @@ function JigsawPuzzle(config) {
     }
 
     this.removeSelectedTile = function(point) {
-        if (!instance.draging) {
+        if (!(instance.draging && ctrlDown)) {
             return;
         }
         var hitResult = project.hitTest(point);
@@ -1427,7 +1407,7 @@ function JigsawPuzzle(config) {
     *restplace的冲突检查
     */
     function checkResetPlaceConflict(tiles, centerCellPosition) {
-        if (Math.abs(centerCellPosition.x) > 70 || Math.abs(centerCellPosition.y) > 50) {
+        if (checkCellPositionOutOfRange(centerCellPosition)) {
             return true;
         }
         var hasConflict = false;
@@ -1436,7 +1416,10 @@ function JigsawPuzzle(config) {
         for (var i = 0; i < tiles.length; i++) {
             var tile = tiles[i];
             var cellPosition = centerCellPosition + tile.relativePosition;
-            
+            if (checkCellPositionOutOfRange(cellPosition)) {
+                return true;
+            }
+
             var alreadyPlacedTile = (getTileAtCellPosition(cellPosition) != undefined);
             hasConflict = alreadyPlacedTile;
             if (!hasConflict) {
@@ -1454,15 +1437,20 @@ function JigsawPuzzle(config) {
         return hasConflict;
     }
 
+    function checkCellPositionOutOfRange(cellPosition) {
+        return !(0 < cellPosition.x && cellPosition.x < 63 &&
+                0 < cellPosition.y && cellPosition.y < 63);
+    }
+
     function checkConflict(tiles, centerCellPosition, selectedGroupTiles) {
-        if (Math.abs(centerCellPosition.x) > 70 || Math.abs(centerCellPosition.y) > 50) {
-            return true;
+        if (checkCellPositionOutOfRange(centerCellPosition)) {
+            return [true];
         }
         var hasConflict = false;
         var needToMove = true;
 
         if (this.allowOverlap)
-            return hasConflict;
+            return [hasConflict];
         var onlyOneTile = (tiles.length == 1);
         for (var i = 0; i < tiles.length; i++) {
             if(hasConflict && !needToMove)
@@ -1471,6 +1459,9 @@ function JigsawPuzzle(config) {
             var tileIndex = getTileIndex(tile);
 
             var cellPosition = centerCellPosition + tile.relativePosition;
+            if (checkCellPositionOutOfRange(cellPosition)) {
+                return [true];
+            }
             var roundPosition = cellPosition * instance.tileWidth;
 
             var alreadyPlacedTile = (getTileAtCellPosition(cellPosition) != undefined);
@@ -1729,13 +1720,9 @@ function JigsawPuzzle(config) {
             survey_type: 'askHelp',
         });
 
-        console.log("Asking for help...");
-        //clearTimeout(instance.askHelpTimeout);
-
         if (mousedowned || instance.hintsShowing) {
             return;
         }
-
 
         var event_name = algorithm == 'distribute' ? 
             'distributed_fetchHints' : 'fetchHints';
@@ -1845,13 +1832,8 @@ function JigsawPuzzle(config) {
             var tilesMoved = false;
             for (var i = 0; i < instance.selectedTile.length; i++) {
                 var tile = instance.selectedTile[i];
-                var cellPosition = undefined;
-                if (hasConflict) {
-                    cellPosition = originCenterCellPostion + tile.relativePosition;
-                }
-                else {
-                    cellPosition = centerCellPosition + tile.relativePosition;
-                }
+                var cellPosition = hasConflict? originCenterCellPostion : centerCellPosition;
+                cellPosition += tile.relativePosition;
                 placeTile(tile, cellPosition);
                 tilesMoved = tilesMoved || tile.positionMoved;
             }
@@ -1907,7 +1889,6 @@ function JigsawPuzzle(config) {
             }
             $('html,body').css('cursor', 'default');
             normalizeTiles();
-
             instance.ctrlDrag = false;
         }
     }
@@ -2016,7 +1997,6 @@ function JigsawPuzzle(config) {
 
     function computeGraphData() {
         instance.subGraphData = instance.removeLinksData.concat(instance.subGraphData);
-        //console.log(instance.subGraphData);
         instance.getHintsArray = new Array();
         var hintsConflict = new Array();
         var edges = {};
@@ -2564,7 +2544,6 @@ function JigsawPuzzle(config) {
                 }
             }
         }
-        //console.log(edgeMap);
         return edgeMap;
     }
 
@@ -2575,7 +2554,6 @@ function JigsawPuzzle(config) {
         }
         for (var i = 0; i < edges.length; i++) {
             var e = edges[i];
-            //console.log(e, instance.edgeMap[e]);
             if (instance.edgeMap[e] && Math.random() > instance.edgeMap[e].pro) {
                 continue;
             }
@@ -2612,7 +2590,6 @@ function JigsawPuzzle(config) {
             data.players.sort(sortPlayersByQuality);
             instance.singleArray = new Array();
             for (var i = 0; i < data.players.length; i++) {
-                //console.log(data.players[i].quality);
                 instance.hintedFrom = data.players[i].from;
                 var hints = edgesToHints(data.players[i].edges);
                 data.sureHints = hints;
@@ -3023,9 +3000,7 @@ function JigsawPuzzle(config) {
                 hintTile.relativePosition = new Point(0, 0);
                 hintTile.alreadyHinted = true;
                 hintTile.picking = false;
-                //console.log("put", hintTile.name, "in position", hintTile.cellPosition, hintTile.positionMoved);
             }
-
             for (var i = 0; i < groupTiles.length; i++) {
                 var hintTile = groupTiles[i];
                 refreshAroundTiles(hintTile, true);
@@ -3227,7 +3202,6 @@ function JigsawPuzzle(config) {
         }
         var img = hitResult.item;
         var tile = img.parent.parent;
-        // console.log(tile.name);
         if (tile && tile.name) {
             if (!tile.picking) {
                 finded = true;
@@ -3602,7 +3576,9 @@ function JigsawPuzzle(config) {
 
         clusterCenter.x = centerGroup[0].x;
         clusterCenter.y = centerGroup[0].y;
+
         instance.centerPoint = clusterCenter*instance.tileWidth;
+
         for(var i=0;i<groupsArray.length;i++){
             groupsArray[i].xdis = (groupsArray[i].x-clusterCenter.x)*instance.tileWidth;
             groupsArray[i].ydis = (groupsArray[i].y-clusterCenter.y)*instance.tileWidth;
@@ -3633,6 +3609,7 @@ function JigsawPuzzle(config) {
         }
         
         instance.groupsArray = groupsArray;
+        instance.centerPoint = clusterCenter*instance.tileWidth;
         instance.focusToCenter();
         //normalizeTiles();
     }
@@ -3647,7 +3624,7 @@ function JigsawPuzzle(config) {
     else{
         $('#apply-button').attr('disabled',"true");
         $('#submit-button').attr('disabled',"true");
-        $('.rb-rating').rating({
+        $('.hint-rb-rating').rating({
             'showCaption': false,
             'showClear': false,
             'stars': '5',
@@ -3657,19 +3634,34 @@ function JigsawPuzzle(config) {
             'size': 'xs',
             // 'starCaptions': { 0: 'NO', 1: 'Too Bad', 2: 'Little Help', 3: 'Just So So', 4: 'Great Help', 5: 'Excellent!' }
         });
+        $('.next-rb-rating').rating({
+            'showCaption': true,
+            'showClear': false,
+            'stars': '5',
+            'min': '0',
+            'max': '5',
+            'step': '1',
+            'size': 'xs',
+            'starCaptions': { 0: '请选择', 1: '非常不愿意', 2: '不愿意', 3: '无所谓', 4: '愿意', 5: '非常愿意' }
+        });
         $('.rb-rating').change(function (event){
-            $('#apply-button').removeAttr("disabled");
-            $('#submit-button').removeAttr("disabled");
+            if ($("#rating").val() && $("#next_game_rating").val()) {
+                $('#apply-button').removeAttr("disabled");
+            }
+            if ($("#rating2").val() && $("#next_game_rating2").val()) {
+                $('#submit-button').removeAttr("disabled");
+            }
         })
     }
     $('#submit-button').click(function (event) {
         // player's rating for the hint(what he thinks about the function)
         var rating = $("#rating2").val();
+        var next_game_rating = $("#next_game_rating2").val();
         sendRecord(true, rating);
         if (roundID >= 0) {
             var extraData = {
                 rating: rating,
-                nextGame: $('#next_game_yes2').prop("checked"), 
+                nextGame: next_game_rating, 
                 reason: $('#next_game_reason2').val(),
             }
             socket.emit('survey', {
@@ -3684,10 +3676,7 @@ function JigsawPuzzle(config) {
             window.location = '/home';
         }
     });
-    $('#survey-button').click(function (event) {
-        // player's rating for the hint(what he thinks about the function)
-        
-    });
+
 
     $('#quit').click(function (event) {
         $('#quitLabel').text('Are You Sure to Quit?');
@@ -3698,11 +3687,12 @@ function JigsawPuzzle(config) {
 
     $('#apply-button').click(function (event) {
         var rating = $("#rating").val();
+        var next_game_rating = $("#next_game_rating").val();
         sendRecord(false, rating);
         if (roundID >= 0) {
             var extraData = {
                 rating: rating,
-                nextGame: $('#next_game_yes').prop("checked"), 
+                nextGame: next_game_rating, 
                 reason: $('#next_game_reason').val(),
             }
             socket.emit('survey', {
@@ -3775,9 +3765,32 @@ $('#share-toggle-button').on('click', function (event) {
     $('#share_toggle_dialog').modal('hide');
 });
 
+var resetPlaceStep = 0;
 $('#reset_button').on('click', function (event) {
+    if (puzzle.steps === resetPlaceStep) {
+        $.amaran({
+            'title': 'Warning',
+            'message': 'Too frequent!',
+            'inEffect': 'slideRight',
+            'cssanimationOut': 'zoomOutUp',
+            'position': "top right",
+            'delay': 2000,
+            'closeOnClick': true,
+            'closeButton': true
+        });
+        return;
+    }
+    resetPlaceStep = puzzle.steps;
     $('#undo_button').css('display', 'none');
-    puzzle.resetPlace();
+    $('#showhints_msgLabel').text('1分钟内拼图块将聚拢。如果超过1分钟仍无响应，请关闭网页重新打开。');
+    $('#show_hints_dialog').modal({
+        keyboard: false,
+        backdrop: 'static',
+    });
+    setTimeout(function () {
+        puzzle.resetPlace();
+        $('#show_hints_dialog').modal('hide');
+    }, 500);
 });
 
 $('#quit_button').on('click', function (event) {
@@ -3848,9 +3861,7 @@ function sendRecord(finished, rating) {
     };
     if (!finished) {
         var randomTime = Math.random() * 1000;
-        console.log("saveRecord in " + randomTime + "ms");
         setTimeout(function(){
-            console.log("saveRecord");
             socket.emit('saveRecord', params);
         }, randomTime);
     }
