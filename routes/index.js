@@ -10,8 +10,9 @@ var dev = require('../config/dev');
 var crypto = require('crypto');
 var util = require('./util.js');
 var PythonShell = require('python-shell');
-var url = require('url');
-var request = require('request');
+/**请求其他页面**/
+const request = require('request');
+
 const redis = require('../redis');
 const Promise = require('bluebird');
 
@@ -40,79 +41,141 @@ function decrypt(str, secret) {
 
 // Get Home Page
 router.route('/').all(LoginFirst).all(Logined).get(async function (req, res, next) {
+    console.log("system get");
     if(!dev.multiPlayer){
 	   return res.redirect('/visitor');
+       console.log("redirect visitor");
     }
-    req.session.error = 'Welcome to Crowd Jigsaw Puzzle!';
-    res.render('index', {
-        title: 'Crowd Jigsaw Puzzle'
-    });
-});
-
-// Image proxy
-router.get('/proxy', function (req, res) {
-    let parts = url.parse(req.url, true);
-    let imageUrl = parts.query.url;
-    parts = url.parse(imageUrl);
-    if(parts.hostname !== 'image.pintu.fun') {
-        res.status(500).send({
-           message: 'Only support image from host: image.pintu.fun'
-        });
-    }
-    req.pipe(request(imageUrl)).pipe(res)
+    // req.session.error = 'Welcome to Crowd Jigsaw Puzzle!';
+    // res.render('index', {
+    //     title: 'Crowd Jigsaw Puzzle'
+    // });
+    console.log("render index");
 });
 
 // Login
+// router.route('/login').all(Logined).get(function (req, res) {
+// 	if(!dev.multiPlayer){
+//        return res.redirect('/visitor');
+//     }
+//     res.render('login', { title: 'Login' });
+// }).post(function (req, res) {
+
+//     let passwd_enc = encrypt(req.body.password, SECRET);
+//     let user = {
+//         username: req.body.username,
+//         password: passwd_enc
+//     };
+
+//     let condition = {
+//         username: user.username
+//     };
+//     UserModel.findOne(condition, function (err, doc) {
+//         if (err) {
+//             console.log(err);
+//         } else {
+//             if (doc) {
+//                 if (doc.password === user.password) {
+//                     // only save the username for safety
+//                     req.session.user = condition;
+//                     let time = util.getNowFormatDate();
+//                     let operation = {
+//                         $set: {
+//                             last_online_time: time
+//                         }
+//                     };
+//                     UserModel.update(condition, operation, function (err) {
+//                         if (err) {
+//                             console.log(err);
+//                         } else {
+//                             req.session.error = user.username + ', Welcome to Crowd Jigsaw!';
+//                             return res.redirect('/home');
+//                         }
+//                     });
+//                 } else {
+//                     req.session.error = 'Wrong username or password!';
+//                     return res.redirect('/login');
+//                 }
+//             } else {
+//                 req.session.error = 'Player does not exist!';
+//                 return res.redirect('/login');
+//             }
+//         }
+//     });
+// });
+
+// Login
 router.route('/login').all(Logined).get(function (req, res) {
-	if(!dev.multiPlayer){
+    if(!dev.multiPlayer){
        return res.redirect('/visitor');
     }
     res.render('login', { title: 'Login' });
-}).post(function (req, res) {
-
-    let passwd_enc = encrypt(req.body.password, SECRET);
-    let user = {
-        username: req.body.username,
-        password: passwd_enc
-    };
-
-    let condition = {
-        username: user.username
-    };
-    UserModel.findOne(condition, function (err, doc) {
-        if (err) {
-            console.log(err);
-        } else {
-            if (doc) {
-                if (doc.password === user.password) {
-                    // only save the username for safety
-                    req.session.user = condition;
-                    let time = util.getNowFormatDate();
-                    let operation = {
-                        $set: {
-                            last_online_time: time
-                        }
-                    };
-                    UserModel.update(condition, operation, function (err) {
-                        if (err) {
-                            console.log(err);
-                        } else {
-                            req.session.error = user.username + ', Welcome to Crowd Jigsaw!';
-                            return res.redirect('/home');
-                        }
-                    });
-                } else {
-                    req.session.error = 'Wrong username or password!';
-                    return res.redirect('/login');
-                }
-            } else {
-                req.session.error = 'Player does not exist!';
-                return res.redirect('/login');
-            }
-        }
-    });
 });
+// .post(function (req, res) {
 
+//     let passwd_enc = encrypt(req.body.password, SECRET);
+//     let user = {
+//         username: req.body.username,
+//         password: passwd_enc
+//     };
+
+//     let condition = {
+//         username: user.username
+//     };
+//     //post到服务器等待验证
+//     request.post({url:'http://passport.com:8080/login', form:{
+//         "username": user.username,
+//         "password": req.body.password,
+//     }}, function(error, response, data) {
+//         console.log(response.headers);
+//         data = JSON.parse(data);
+//         console.log(data);
+//         if(data.error==0){
+//             console.log('home');
+//             req.session.user = condition;
+//             req.session.error = user.username + ', Welcome to Crowd Jigsaw!';
+//             return res.redirect('/home');
+//         }else{
+//             console.log('login');
+//             req.session.error = 'Wrong username or password!';
+//             return res.redirect('/login');
+//         }
+//         //return res.redirect('/login/?token='+body['token']);
+//     });
+
+    // UserModel.findOne(condition, function (err, doc) {
+    //     if (err) {
+    //         console.log(err);
+    //     } else {
+    //         if (doc) {
+    //             if (doc.password === user.password) {
+    //                 // only save the username for safety
+    //                 req.session.user = condition;
+    //                 let time = util.getNowFormatDate();
+    //                 let operation = {
+    //                     $set: {
+    //                         last_online_time: time
+    //                     }
+    //                 };
+    //                 UserModel.update(condition, operation, function (err) {
+    //                     if (err) {
+    //                         console.log(err);
+    //                     } else {
+    //                         req.session.error = user.username + ', Welcome to Crowd Jigsaw!';
+    //                         return res.redirect('/home');
+    //                     }
+    //                 });
+    //             } else {
+    //                 req.session.error = 'Wrong username or password!';
+    //                 return res.redirect('/login');
+    //             }
+    //         } else {
+    //             req.session.error = 'Player does not exist!';
+    //             return res.redirect('/login');
+    //         }
+    //     }
+    // });
+// });
 /**
  * Log in as a visitor
  */
@@ -173,7 +236,7 @@ router.route('/visitor').get(function (req, res) {
 });
 
 
-// Register
+// 
 router.route('/register').all(Logined).get(function (req, res) {
     res.render('register', {
         title: 'Register'
@@ -305,6 +368,57 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
                     final_show_flag: final_show_flag,
                     final_ranking: ranking,
                 });
+            }else{
+                UserModel.find({}, function (err, docs) {
+                    if (err) {
+                        console.log(err);
+                    } else {
+                        if (docs) {
+                            let index = docs.length > 0 ? docs[docs.length-1].userid + 1: docs.length;
+                            //准备添加到数据库的数据（数组格式）
+                            let operation = {
+                                userid: index,
+                                username: selectStr.username,
+                                last_online_time: util.getNowFormatDate(),
+                                register_time: util.getNowFormatDate()
+                            };
+                            UserModel.create(operation, async function (err) {
+                                if (err) {
+                                    console.log(err);
+                                } else {
+                                    let final_user_score = await redis.getAsync('final_user_score');
+                                    final_user_score = final_user_score? JSON.parse(final_user_score): [];
+                                    let final_class_score = await redis.getAsync('final_class_score');
+                                    final_class_score = final_class_score? JSON.parse(final_class_score): [];
+                                    let final_show_flag = await redis.getAsync('final_show_flag');
+                                    final_show_flag = final_show_flag? true: false;
+                                    let ranking = final_user_score.length;
+                                    let new_final_user_score = [];
+                                    let score = 0;
+                                    // req.session.error = 'Register success, you can login now!';
+                                    // return res.redirect('/login');
+                                    req.session.error = 'Welcome! ' + req.session.user.username;
+                                    res.render('playground', {
+                                        title: 'Home',
+                                        username: selectStr.username,
+                                        admin: false,
+                                        total_score: 0,
+                                        round_attend: 0,
+                                        after_class_score: 0,
+                                        multiPlayer: dev.multiPlayer,
+                                        multiPlayerServer: dev.multiPlayerServer,
+                                        singlePlayerServer: dev.singlePlayerServer,
+                                        normalPlayerCreateRound: dev.normalPlayerCreateRound,
+                                        final_class_score: final_class_score,
+                                        final_user_score: new_final_user_score,
+                                        final_show_flag: final_show_flag,
+                                        final_ranking: ranking,
+                                    });
+                                }
+                            });
+                        }
+                    }
+                });
             }
         }
     });
@@ -335,10 +449,7 @@ router.route('/puzzle').all(LoginFirst).get(function (req, res) {
                 border: round.border,
                 official: round.official || false,
                 forceLeaveEnable: round.forceLeaveEnable || false,
-                tileHeat: round.tileHeat || false,
                 hintDelay: round.hintDelay || false,
-                outsideImage: round.outsideImage || false,
-                originSize: round.originSize || false,
                 algorithm: round.algorithm,
                 tilesPerRow: round.tilesPerRow,
                 tilesPerColumn: round.tilesPerColumn,
@@ -369,10 +480,7 @@ router.route('/puzzle').all(LoginFirst).get(function (req, res) {
                             border: round.border,
                             official: round.official || false,
                             forceLeaveEnable: round.forceLeaveEnable || false,
-                            tileHeat: round.tileHeat || false,
                             hintDelay: round.hintDelay || false,
-                            outsideImage: round.outsideImage || false,
-                            originSize: round.originSize || false,
                             algorithm: round.algorithm,
                             tilesPerRow: round.tilesPerRow,
                             tilesPerColumn: round.tilesPerColumn,
@@ -518,10 +626,6 @@ router.route('/settings').all(LoginFirst).get(function (req, res) {
     }
 });
 
-function prefix(num, length) {
-    return (Array(length).join('0') + num).slice(-length);  
-}
-
 // Get the rank of this round
 router.route('/roundrank/:round_id').all(LoginFirst).get(async function (req, res) {
     let condition = {
@@ -545,7 +649,6 @@ router.route('/roundrank/:round_id').all(LoginFirst).get(async function (req, re
                 return;
             }
             let round = JSON.parse(round_json);
-            let start_time = Date.parse(round.start_time);
             //console.log(round, round.tilesPerColumn, round.tilesPerRow);
             let puzzle_links = 2 * round.tilesPerColumn * round.tilesPerRow - round.tilesPerColumn - round.tilesPerRow;
             let finished = new Array();
@@ -564,16 +667,9 @@ router.route('/roundrank/:round_id').all(LoginFirst).get(async function (req, re
                     finishPercent = (r.correct_links / 2) / puzzle_links * 100;
                 }
                 if (r.end_time != "-1") {
-                    let end_time = Date.parse(r.end_time)
-                    let finish_time = (end_time - start_time) / 1000;
-                    let record_finish_time = r.time.split(':').map(e => parseInt(e)).reduce((a, b) => a * 60 + b);
-                    let time = finish_time < record_finish_time ? finish_time : record_finish_time;
-                    time = prefix(parseInt(time / 3600), 2) + ':' + 
-                    prefix(parseInt((time % 3600) / 60), 2) + ":" + 
-                    prefix(parseInt(time % 60), 2); 
                     finished.push({
                         "playername": r.username,
-                        "time": time,
+                        "time": r.time,
                         "steps": r.steps,
                         "hintPercent": hintPercent.toFixed(3),
                         "finishPercent": finishPercent.toFixed(3),
@@ -682,6 +778,7 @@ router.get('/logout', function (req, res) {
 });
 
 function Logined(req, res, next) {
+    console.log('session'+req.session.user);
     if (req.session.user) {
         req.session.error = 'Welcome back!';
         return res.redirect('/home');
@@ -692,9 +789,66 @@ function Logined(req, res, next) {
 
 function LoginFirst(req, res, next) {
     if (!req.session.user) {
-        req.session.error = 'Please Login First!';
-        return res.redirect('/login');
+        //req.session.error = 'Please Login First!';
+        //return res.redirect('/login');
         //return res.redirect('back');//返回之前的页面
+            /*
+         * 如果 session 中没有用户信息，则需要去 passport 系统进行身份认证。这里区分两种情况：
+         *
+         * 1. 如果 url 中带有 token 信息，则去 passport 中认证 token 的有效性，如果有效则说明登录成功，建立 session 开始通话。
+         * 2. 如果 url 中没有 token 信息，则取 passport 进行登录。如果登录成功，passport 会将浏览器重定向到此系统并在 url 上附带 token 信息。进行步骤 1。
+         *
+         * 因为 token 很容易伪造，所以需要去检验 token 的真伪，否则任何一个带有 token 的请求岂不是都可以通过认证。
+         */
+        let system = process.env.SERVER_NAME;
+        console.log('no session');
+        let token = req.query.token;
+        if (!token) {
+          console.log('no token and redirect');
+          req.session.error = 'Please Login First!';
+          res.redirect(`http://passport.pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);      
+        } else {
+            console.log('have token');
+          request(
+            `http://passport.pintu.fun/check_token?token=${token}&t=${new Date().getTime()}`,
+             function (error, response, data) {
+              if (!error && response.statusCode === 200) {
+                data = JSON.parse(data);
+                if (data.error === 0) {
+                  // TODO 这里的 userId 信息应该是经过加密的，加密算法要么内嵌，要么从 passport 获取。这里为了操作简单，直接使用明文。
+                  let userName = data.username;
+                  console.log('userName:'+userName);
+                  if (!userName) {
+                    res.redirect(`http://pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);
+                    console.log('no userName redirect login');
+                    return;
+                  }
+                  /*
+                   * TODO
+                   * 获取 userId 后，可以操作数据库获取用户的详细信息，用户名、权限等；这里也可以由 passport 直接返回 user 信息，主要看用户信息
+                   * 的数据库如何部署。
+                   * 为了方便，直接操作 userId，省略用户数据库操作。
+                   */
+                  console.log('no session system login success');
+                  let condition = {
+                      username: userName
+                    };
+                  req.session.user = condition;
+                  req.session.error = userName + ', Welcome to Crowd Jigsaw!';
+                  return res.redirect('/home');
+                  //req.session.user = userId;
+                  //res.render('/home');
+                } else {
+                  // token 验证失败，重新去 passport 登录。
+                  res.redirect(`http://pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);
+                  console.log('data error redirect login');
+                }
+              } else {
+                res.redirect(`http://pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);
+                console.log('error==1,登录失败');
+              }
+            });
+        }
     }
     next();
 }
