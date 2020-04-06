@@ -287,8 +287,6 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
                                     let ranking = final_user_score.length;
                                     let new_final_user_score = [];
                                     let score = 0;
-                                    // req.session.error = 'Register success, you can login now!';
-                                    // return res.redirect('/login');
                                     req.session.error = 'Welcome! ' + req.session.user.username;
                                     res.render('playground', {
                                         title: 'Home',
@@ -716,7 +714,6 @@ router.route('/records').all(LoginFirst).get(function (req, res) {
                     console.log(err);
                 } else {
                     if (doc) {
-                        req.session.error = 'Welcome! ' + req.session.user.username;
                         res.render('records', {
                             title: 'Records',
                             username: req.session.user.username,
@@ -764,7 +761,7 @@ function Logined(req, res, next) {
 
 function LoginFirst(req, res, next) {
     if (!req.session.user) {
-            /*
+        /*
          * 如果 session 中没有用户信息，则需要去 passport 系统进行身份认证。这里区分两种情况：
          *
          * 1. 如果 url 中带有 token 信息，则去 passport 中认证 token 的有效性，如果有效则说明登录成功，建立 session 开始通话。
@@ -773,51 +770,41 @@ function LoginFirst(req, res, next) {
          * 因为 token 很容易伪造，所以需要去检验 token 的真伪，否则任何一个带有 token 的请求岂不是都可以通过认证。
          */
         let system = process.env.SERVER_NAME;
-        console.log('no session');
         let token = req.query.token;
         if (!token) {
-          console.log('no token and redirect');
-          req.session.error = 'Please Login First!';
           res.redirect(`http://passport.pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);      
         } else {
-            console.log('have token');
           request(
             `http://passport.pintu.fun/check_token?token=${token}&t=${new Date().getTime()}`,
              function (error, response, data) {
               if (!error && response.statusCode === 200) {
                 data = JSON.parse(data);
                 if (data.error === 0) {
-                  // TODO 这里的 userId 信息应该是经过加密的，加密算法要么内嵌，要么从 passport 获取。这里为了操作简单，直接使用明文。
+                  //这里的 userId 信息应该是经过加密的，加密算法要么内嵌，要么从 passport 获取。这里为了操作简单，直接使用明文。
                   let userName = data.username;
-                  console.log('userName:'+userName);
                   if (!userName) {
                     res.redirect(`http://passport.pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);
                     console.log('no userName redirect login');
                     return;
                   }
                   /*
-                   * TODO
+                   * 
                    * 获取 userId 后，可以操作数据库获取用户的详细信息，用户名、权限等；这里也可以由 passport 直接返回 user 信息，主要看用户信息
                    * 的数据库如何部署。
                    * 为了方便，直接操作 userId，省略用户数据库操作。
                    */
-                  console.log('no session system login success');
                   let condition = {
                       username: userName
                     };
                   req.session.user = condition;
                   req.session.error = userName + ', Welcome to Crowd Jigsaw!';
                   return res.redirect('/home');
-                  //req.session.user = userId;
-                  //res.render('/home');
                 } else {
                   // token 验证失败，重新去 passport 登录。
                   res.redirect(`http://passport.pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);
-                  console.log('data error redirect login');
                 }
               } else {
                 res.redirect(`http://passport.pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);
-                console.log('error==1,登录失败');
               }
             });
         }
