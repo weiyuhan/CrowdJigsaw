@@ -261,52 +261,44 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
                     final_ranking: ranking,
                 });
             }else{
-                UserModel.find({}, function (err, docs) {
+                let index = req.session.user.userid;
+                //准备添加到数据库的数据（数组格式）
+                let operation = {
+                    userid: index,
+                    username: selectStr.username,
+                    last_online_time: util.getNowFormatDate(),
+                    register_time: util.getNowFormatDate()
+                };
+                UserModel.create(operation, async function (err) {
                     if (err) {
                         console.log(err);
                     } else {
-                        if (docs) {
-                            let index = docs.length > 0 ? docs[docs.length-1].userid + 1: docs.length;
-                            //准备添加到数据库的数据（数组格式）
-                            let operation = {
-                                userid: index,
-                                username: selectStr.username,
-                                last_online_time: util.getNowFormatDate(),
-                                register_time: util.getNowFormatDate()
-                            };
-                            UserModel.create(operation, async function (err) {
-                                if (err) {
-                                    console.log(err);
-                                } else {
-                                    let final_user_score = await redis.getAsync('final_user_score');
-                                    final_user_score = final_user_score? JSON.parse(final_user_score): [];
-                                    let final_class_score = await redis.getAsync('final_class_score');
-                                    final_class_score = final_class_score? JSON.parse(final_class_score): [];
-                                    let final_show_flag = await redis.getAsync('final_show_flag');
-                                    final_show_flag = final_show_flag? true: false;
-                                    let ranking = final_user_score.length;
-                                    let new_final_user_score = [];
-                                    let score = 0;
-                                    req.session.error = 'Welcome! ' + req.session.user.username;
-                                    res.render('playground', {
-                                        title: 'Home',
-                                        username: selectStr.username,
-                                        admin: false,
-                                        total_score: 0,
-                                        round_attend: 0,
-                                        after_class_score: 0,
-                                        multiPlayer: dev.multiPlayer,
-                                        multiPlayerServer: dev.multiPlayerServer,
-                                        singlePlayerServer: dev.singlePlayerServer,
-                                        normalPlayerCreateRound: dev.normalPlayerCreateRound,
-                                        final_class_score: final_class_score,
-                                        final_user_score: new_final_user_score,
-                                        final_show_flag: final_show_flag,
-                                        final_ranking: ranking,
-                                    });
-                                }
-                            });
-                        }
+                        let final_user_score = await redis.getAsync('final_user_score');
+                        final_user_score = final_user_score? JSON.parse(final_user_score): [];
+                        let final_class_score = await redis.getAsync('final_class_score');
+                        final_class_score = final_class_score? JSON.parse(final_class_score): [];
+                        let final_show_flag = await redis.getAsync('final_show_flag');
+                        final_show_flag = final_show_flag? true: false;
+                        let ranking = final_user_score.length;
+                        let new_final_user_score = [];
+                        let score = 0;
+                        req.session.error = 'Welcome! ' + req.session.user.username;
+                        res.render('playground', {
+                            title: 'Home',
+                            username: selectStr.username,
+                            admin: false,
+                            total_score: 0,
+                            round_attend: 0,
+                            after_class_score: 0,
+                            multiPlayer: dev.multiPlayer,
+                            multiPlayerServer: dev.multiPlayerServer,
+                            singlePlayerServer: dev.singlePlayerServer,
+                            normalPlayerCreateRound: dev.normalPlayerCreateRound,
+                            final_class_score: final_class_score,
+                            final_user_score: new_final_user_score,
+                            final_show_flag: final_show_flag,
+                            final_ranking: ranking,
+                        });
                     }
                 });
             }
@@ -782,6 +774,7 @@ function LoginFirst(req, res, next) {
                 if (data.error === 0) {
                   //这里的 userId 信息应该是经过加密的，加密算法要么内嵌，要么从 passport 获取。这里为了操作简单，直接使用明文。
                   let userName = data.username;
+                  let userID = data.userid;
                   if (!userName) {
                     res.redirect(`http://passport.pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);
                     console.log('no userName redirect login');
@@ -794,7 +787,8 @@ function LoginFirst(req, res, next) {
                    * 为了方便，直接操作 userId，省略用户数据库操作。
                    */
                   let condition = {
-                      username: userName
+                      username: userName,
+                      userid:userID
                     };
                   req.session.user = condition;
                   req.session.error = userName + ', Welcome to Crowd Jigsaw!';
