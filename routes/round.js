@@ -12,6 +12,7 @@ var dev = require('../config/dev');
 const redis = require('../redis');
 const Promise = require('bluebird');
 var lockedTileIndexes = new Array();
+var roundRandomSequence = {};
 
 async function saveScore(round_id) {
     let redis_key = 'round:' + round_id + ':scoreboard';
@@ -129,6 +130,20 @@ async function getActiveTotalPlayers() {
     return active_total_players? parseInt(active_total_players): 0;
 }
 
+function getRandomSequence(n) {
+    let array = new Array();
+    for (let i = 0; i < n; i ++) {
+        array[i] = i;
+    }
+    for (let i = n - 1; i >=0; i--) {
+        let randomIndex = Math.floor(Math.random()*(i+1));
+        let itemAtIndex = array[randomIndex];
+        array[randomIndex] = array[i];
+        array[i] = itemAtIndex;
+    }
+    return array;
+}
+
 module.exports = function (io) {
 
     io.on('connection', function (socket) {
@@ -138,13 +153,13 @@ module.exports = function (io) {
         socket.on('newRound', function (data) {
             if (data.players_num > 100 && 
                 data.admin != true && data.key != dev.admin_key) {
-                console.log(data.key, dev.admin_key);
                 socket.emit('create_round_failed', {
                     username: data.username,
                     msg: "wrong Admin Key for multiplayer round"
                 });
                 return;
             }
+
             RoundModel.count({}, async function (err, docs_size) {
                 if (err) {
                     console.log(err);
@@ -156,6 +171,7 @@ module.exports = function (io) {
                             return;
                         }
                         imageSrc = randomUrl[0];
+                        data.outsideImage = false;
                     }
                     let index = docs_size;
                     console.log(index, imageSrc);
@@ -163,9 +179,12 @@ module.exports = function (io) {
                     let tileWidth = 64;
                     let tilesPerRow = data.originSize? Math.floor(data.imageWidth / tileWidth): data.imageSize;
                     let tilesPerColumn = data.originSize? Math.floor(data.imageHeight / tileWidth): data.imageSize;
-                    console.log(tilesPerRow, tilesPerColumn, data);
                     let imageWidth = data.originSize? data.imageWidth: tilesPerRow * tileWidth;
                     let imageHeight = data.originSize? data.imageHeight: tilesPerColumn * tileWidth;
+                    if (data.algorithm == 'share') {
+                        roundRandomSequence[index] = getRandomSequence(tilesPerRow * tilesPerColumn);
+                    }
+
                     let shapeArray = util.getRandomShapes(tilesPerRow, tilesPerColumn, data.shape, data.edge);
                     let operation = {
                         round_id: index,
@@ -549,14 +568,28 @@ module.exports = function (io) {
         /**
          * Load a game by one user
          */
-        socket.on('share_loadGame', function (data) {
+        socket.on('share_loadGame', async function (data) {
             let redis_key = 'roundid:' + data.round_id + ':savegame';
-            redis.get(redis_key, function(err, save_game){
+            let save_game = await redis.getAsync(redis_key);
+            if (!save_game) {
+                if (!roundRandomSequence[data.round_id]) {
+                    let round = await redis.getAsync('round:' + data.round_id);
+                    if (!roundRandomSequence[data.round_id]) {
+                        round = JSON.parse(round);
+                        roundRandomSequence[data.round_id] = getRandomSequence(round.tilesPerRow * round.tilesPerColumn);;
+                    }
+                }
+                io.sockets.emit('loadGameSuccess', {
+                    username: data.username,
+                    randomSeq: roundRandomSequence[data.round_id],
+                    gameData: JSON.parse(save_game)
+                });
+            } else {
                 io.sockets.emit('loadGameSuccess', {
                     username: data.username,
                     gameData: JSON.parse(save_game)
                 });
-            });
+            }
         });
 
         socket.on('survey', function(data) {

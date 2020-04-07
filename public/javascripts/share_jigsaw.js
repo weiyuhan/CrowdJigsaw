@@ -964,11 +964,8 @@ function JigsawPuzzle(config) {
         // randomly select tiles and place them one by one 
         for (var y = 0; y < yTileCount; y++) {
             for (var x = 0; x < xTileCount; x++) {
-                //Math.random() * 
-                var index1 = Math.floor(0.5*tileIndexes.length);
-                var index2 = tileIndexes[index1];
-                var tile = tiles[index2];
-                tileIndexes.remove(index1, 1);
+                var index1 = instance.randomSequence[y * xTileCount + x];
+                var tile = tiles[index1];
 
                 var position = view.center -
                     new Point(instance.tileWidth, instance.tileWidth / 2) +
@@ -2870,7 +2867,8 @@ function JigsawPuzzle(config) {
         //console.log("loadGame username:"+data.username);
         if (data.username == player_name) {
             if(!data.gameData){
-                console.log("nogameData:"+data.gameData);
+                console.log("nogameData", data);
+                instance.randomSequence = data.randomSeq;
                 createAndPlaceTiles(true);
                 return;
             }
