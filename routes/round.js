@@ -392,7 +392,7 @@ module.exports = function (io) {
         });
 
         //接收拼图块被选择的消息，广播给所有玩家，锁定这一块。
-        socket.on('tileSelect', function (data) {
+        socket.on('tileSelect', async function (data) {
             let islocked = -1;
             for(var i=0;i<lockedTileIndexes.length;i++){
                 for (var j=0;j<data.selected_tiles.length;j++) {
@@ -409,15 +409,12 @@ module.exports = function (io) {
                 }
             }
             let redis_key = 'roundid:' + data.round_id + ':savegame';
-            redis.get(redis_key, function(err, save_game){
-                //console.log(save_game);
-                    socket.emit('isLock', {
-                    username: data.username,
-                    gameData: JSON.parse(save_game),
-                    lock:islocked,
-                    slockTileIndexes:lockedTileIndexes
-                });
-                islocked=-1;
+            let save_game = await redis.getAsync(redis_key);
+            socket.emit('isLock', {
+                username: data.username,
+                gameData: JSON.parse(save_game),
+                lock:islocked,
+                slockTileIndexes:lockedTileIndexes
             });
         });
 
@@ -557,10 +554,10 @@ module.exports = function (io) {
                     console.log(err);
                     socket.emit('gameSaved', { err: err });
                 } else {
-                    socket.emit('gameSaved', { success: true, round_id: data.round_id, player_name: data.player_name});
-                    socket.broadcast.emit('updateTiles', {
-                        username: data.username,
-                        gameData: save_game
+                    socket.emit('gameSaved', { 
+                        success: true, 
+                        round_id: data.round_id, 
+                        player_name: data.player_name
                     });
                 }
             });

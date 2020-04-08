@@ -286,12 +286,6 @@ function onMouseDrag(event) {
     if(someonelock == 1){
         return;
     }
-    //socket.emit("tileDrag",{round_id: roundID,Delta: event.delta});
-    // if(someoneOp == 1){
-    //     return;
-    // }
-    var ca = document.getElementById("canvas");
-    ca.getContext("2d").clearRect(0, 0, ca.width, ca.height);
     mousedowned = true;
     if (timeoutFunction) {
         clearTimeout(timeoutFunction);
@@ -622,6 +616,10 @@ function JigsawPuzzle(config) {
             }
         }
         socket.emit('tileSelect',{round_id: roundID,username: player_name,selected_tiles:selectedTileIndexes});
+        instance.tileSelectTimeout = setTimeout(function () {
+            clearTimeout(instance.tileSelectTimeout);
+            instance.tileSelectTimeout = null;
+        }, 500);
         instance.selectedTile.length=0;
         return selectedTileIndexes;
     }
@@ -2610,7 +2608,7 @@ function JigsawPuzzle(config) {
                 tile.position = centerPosition + tile.relativePosition * instance.tileWidth + delta;
             }
         }
-        else {
+        else if (!instance.tileSelectTimeout) {
             var currentScroll = view.currentScroll - delta * instance.currentZoom;
             view.scrollBy(currentScroll);
             view.currentScroll = currentScroll;
@@ -2763,6 +2761,8 @@ function JigsawPuzzle(config) {
 
     socket.on('isLock',function(data){
         console.log("lock:"+data.lock);
+        clearTimeout(instance.tileSelectTimeout);
+        instance.tileSelectTimeout = null;
         someonelock = data.lock;
         if(someonelock!=1){
             mousedowned = true;
