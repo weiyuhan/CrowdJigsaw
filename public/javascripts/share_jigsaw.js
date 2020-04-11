@@ -2594,6 +2594,7 @@ function JigsawPuzzle(config) {
             if (!instance.selectedTile || !instance.selectedTile[0]) {
                 instance.selectedTile = null;
                 instance.draging = false;
+                return;
             }
             var centerPosition = instance.selectedTile[0].position;
             if (instance.selectedTile[0].differentColor.length > 0) {
@@ -2783,7 +2784,7 @@ function JigsawPuzzle(config) {
          var selectedTileIndexes = new Array();
             if(instance.selectedTile != null){
                 for (var i = 0; i < instance.selectedTile.length; i++) {
-                        selectedTileIndexes.push(getTileIndex(instance.selectedTile[i]));
+                    selectedTileIndexes.push(getTileIndex(instance.selectedTile[i]));
                 }
             }
             //console.log("aaaaaaaaaaaaa");
@@ -2819,11 +2820,10 @@ function JigsawPuzzle(config) {
                     for(var j = 0;j < selectedTileIndexes.length;j++){
                         if(tileIndex == selectedTileIndexes[j]){
                             isConflict = true;
-                            console.log("bbbbbbbbb");
                         }
                     }
                 }
-                if(!isConflict){
+                if(!isConflict && !tile.picking){
                     placeTile(tile, new Point(tilePos.x, tilePos.y));
                 }
                 tile.moved = false; // if one tile just clicked or actually moved(if moved, opacity=1)
@@ -2901,67 +2901,85 @@ function JigsawPuzzle(config) {
             createAndPlaceTiles(needIntro);
         }
     });
-    socket.on('updateTiles', function (data) {
+    socket.on('updateSaveGame', function (data) {
         if (!instance.tiles) {
             return;
         }
-            var selectedTileIndexes = new Array();
-            if(instance.selectedTile != null){
-                for (var i = 0; i < instance.selectedTile.length; i++) {
-                        selectedTileIndexes.push(getTileIndex(instance.selectedTile[i]));
-                }
-            }
-            if(!data.gameData){
-                createAndPlaceTiles1(true);
-                console.log('updateTiles create tiles in reload');
-                return;
-            }
-            var gameData = data.gameData;
-            var needIntro = !gameData.round_id;
-            if (gameData.round_id == roundID) {
-                // $.amaran({
-                //     'title': 'reloadGame',
-                //     //'message': 'Progress reloaded.',
-                //     'inEffect': 'slideRight',
-                //     'cssanimationOut': 'zoomOutUp',
-                //     'position': "top right",
-                //     'delay': 2000,
-                //     'closeOnClick': true,
-                //     'closeButton': true
-                // });
-                startTime = gameData.startTime;
-                instance.maxSubGraphSize = gameData.maxSubGraphSize;
-                instance.steps = gameData.steps;
-                instance.realSteps = gameData.realSteps;
-                document.getElementById("steps").innerHTML = instance.realSteps;
-                instance.saveTilePositions = JSON.parse(gameData.tiles);
-                instance.saveHintedLinks = JSON.parse(gameData.tileHintedLinks);
-                totalHintsNum = gameData.totalHintsNum;
-                correctHintsNum = gameData.correctHintsNum;
-            } 
-            
-            console.log("updateTiles roundid:"+roundID);
-            
+        var gameData = data.gameData;
+        if (gameData && gameData.round_id == roundID) {
+            startTime = gameData.startTime;
+            instance.maxSubGraphSize = gameData.maxSubGraphSize;
+            instance.steps = gameData.steps;
+            instance.realSteps = gameData.realSteps;
+            document.getElementById("steps").innerHTML = instance.realSteps;
+            instance.saveTilePositions = JSON.parse(gameData.tiles);
+            instance.saveHintedLinks = JSON.parse(gameData.tileHintedLinks);
+            totalHintsNum = gameData.totalHintsNum;
+            correctHintsNum = gameData.correctHintsNum;
             for (var i = 0; i < instance.saveTilePositions.length; i++) {
-                var isConflict = false;
                 var tilePos = instance.saveTilePositions[i];
                 var tile = instance.tiles[tilePos.index];
-                var tileIndex = getTileIndex(tile);
-                if(selectedTileIndexes.length!=0){
-                    for(var j = 0;j < selectedTileIndexes.length;j++){
-                        if(tileIndex == selectedTileIndexes[j]){
-                            isConflict = true;
-                            console.log("updateTiles aaaaa");
-                            //backConflictTile.push();
-                        }
-                    }
-                }
-                if(!isConflict){
+                if(!tile.picking){
                     placeTile(tile, new Point(tilePos.x, tilePos.y));
                 }
                 tile.moved = false; // if one tile just clicked or actually moved(if moved, opacity=1)
 
             }
+            if (!instance.gameFinished) {
+                var errors = checkTiles();
+                if (errors == 0) {
+                    finishGame();
+                }
+            }
+        } 
+    });
+    socket.on('updateTiles', function (data) {
+        if (!instance.tiles) {
+            return;
+        }
+        var selectedTileIndexes = new Array();
+        if(instance.selectedTile != null){
+            for (var i = 0; i < instance.selectedTile.length; i++) {
+                    selectedTileIndexes.push(getTileIndex(instance.selectedTile[i]));
+            }
+        }
+        if(!data.gameData){
+            createAndPlaceTiles1(true);
+            return;
+        }
+        var gameData = data.gameData;
+        var needIntro = !gameData.round_id;
+        if (gameData.round_id == roundID) {
+            startTime = gameData.startTime;
+            instance.maxSubGraphSize = gameData.maxSubGraphSize;
+            instance.steps = gameData.steps;
+            instance.realSteps = gameData.realSteps;
+            document.getElementById("steps").innerHTML = instance.realSteps;
+            instance.saveTilePositions = JSON.parse(gameData.tiles);
+            instance.saveHintedLinks = JSON.parse(gameData.tileHintedLinks);
+            totalHintsNum = gameData.totalHintsNum;
+            correctHintsNum = gameData.correctHintsNum;
+        } 
+        
+        for (var i = 0; i < instance.saveTilePositions.length; i++) {
+            var isConflict = false;
+            var tilePos = instance.saveTilePositions[i];
+            var tile = instance.tiles[tilePos.index];
+            var tileIndex = getTileIndex(tile);
+            if(selectedTileIndexes.length!=0){
+                for(var j = 0;j < selectedTileIndexes.length;j++){
+                    if(tileIndex == selectedTileIndexes[j]){
+                        isConflict = true;
+                        //backConflictTile.push();
+                    }
+                }
+            }
+            if(!isConflict && !tile.picking){
+                placeTile(tile, new Point(tilePos.x, tilePos.y));
+            }
+            tile.moved = false; // if one tile just clicked or actually moved(if moved, opacity=1)
+
+        }
         puzzle.releaseTile();  
         mousedowned = false;
         someonelock = -1;

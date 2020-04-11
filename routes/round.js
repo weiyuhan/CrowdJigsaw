@@ -430,7 +430,7 @@ module.exports = function (io) {
             let redis_key = 'roundid:' + data.round_id + ':savegame';
             redis.get(redis_key, function(err, save_game){
                 //console.log(save_game);
-                    socket.emit('updateTiles', {
+                socket.emit('updateTiles', {
                     username: data.username,
                     gameData: JSON.parse(save_game)
                 });
@@ -558,6 +558,10 @@ module.exports = function (io) {
                         success: true, 
                         round_id: data.round_id, 
                         player_name: data.player_name
+                    });
+                    socket.broadcast.emit('updateSaveGame', {
+                        username: data.username,
+                        gameData: save_game
                     });
                 }
             });
