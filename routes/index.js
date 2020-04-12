@@ -43,7 +43,6 @@ function decrypt(str, secret) {
 router.route('/').all(LoginFirst).all(Logined).get(async function (req, res, next) {
     if(!dev.multiPlayer){
 	   return res.redirect('/visitor');
-       console.log("redirect visitor");
     }
 });
 
@@ -127,8 +126,6 @@ router.route('/visitor').get(function (req, res) {
     }
 });
 
-
-// 
 router.route('/register').all(Logined).get(function (req, res) {
     res.render('register', {
         title: 'Register'
@@ -738,11 +735,11 @@ router.get('/logout', function (req, res) {
     req.session.user = null;
     req.session.error = null;
     //req.session.destroy();
-    return res.redirect('http://passport.pintu.fun/logout?redirectUrl=pintu.fun');
+    console.log(req.headers.host + req.originalUrl);
+    return res.redirect(`${dev.sso_server}logout?redirectUrl=${req.headers.host}`);
 });
 
 function Logined(req, res, next) {
-    console.log('session'+req.session.user);
     if (req.session.user) {
         req.session.error = 'Welcome back!';
         return res.redirect('/home');
@@ -764,20 +761,18 @@ function LoginFirst(req, res, next) {
         let system = process.env.SERVER_NAME;
         let token = req.query.token;
         if (!token) {
-          res.redirect(`http://passport.pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);      
+          res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`); 
         } else {
           request(
-            `http://passport.pintu.fun/check_token?token=${token}&t=${new Date().getTime()}`,
+            `${dev.sso_server}check_token?token=${token}`,
              function (error, response, data) {
               if (!error && response.statusCode === 200) {
                 data = JSON.parse(data);
                 if (data.error === 0) {
-                  //这里的 userId 信息应该是经过加密的，加密算法要么内嵌，要么从 passport 获取。这里为了操作简单，直接使用明文。
                   let userName = data.username;
                   let userID = data.userid;
                   if (!userName) {
-                    res.redirect(`http://passport.pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);
-                    console.log('no userName redirect login');
+                    res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
                     return;
                   }
                   /*
@@ -795,10 +790,10 @@ function LoginFirst(req, res, next) {
                   return res.redirect('/home');
                 } else {
                   // token 验证失败，重新去 passport 登录。
-                  res.redirect(`http://passport.pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);
+                  res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`)
                 }
               } else {
-                res.redirect(`http://passport.pintu.fun/login?redirectUrl=${req.headers.host + req.originalUrl}`);
+                res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
               }
             });
         }
