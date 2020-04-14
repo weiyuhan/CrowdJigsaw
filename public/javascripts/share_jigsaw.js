@@ -2747,6 +2747,7 @@ function JigsawPuzzle(config) {
         }
 
         socket.emit('share_saveGame', {
+            seq_num: instance.seq_num || 1,
             round_id: roundID,
             player_name: player_name,
             steps: instance.steps,
@@ -2799,6 +2800,7 @@ function JigsawPuzzle(config) {
             if (gameData.round_id == roundID) {
 
                 startTime = gameData.startTime;
+                instance.seq_num = gameData.seq_num || 1;
                 instance.maxSubGraphSize = gameData.maxSubGraphSize;
                 instance.steps = gameData.steps;
                 instance.realSteps = gameData.realSteps;
@@ -2831,16 +2833,16 @@ function JigsawPuzzle(config) {
             }
             setTimeout(function(){
                 for(var i=0;i<data.slockTileIndexes.length;i++){
-                var tile = instance.tiles[data.slockTileIndexes[i]];
-                tile.topEdge.visible = false;
-                tile.rightEdge.visible = false;
-                tile.bottomEdge.visible = false;
-                tile.leftEdge.visible = false;
-                tile.colorBorder.visible = false;
-                tile.differentColor = new Array();
-                tile.colorDirection = new Array();
-                tile.opacity = 1;
-            }  
+                    var tile = instance.tiles[data.slockTileIndexes[i]];
+                    tile.topEdge.visible = false;
+                    tile.rightEdge.visible = false;
+                    tile.bottomEdge.visible = false;
+                    tile.leftEdge.visible = false;
+                    tile.colorBorder.visible = false;
+                    tile.differentColor = new Array();
+                    tile.colorDirection = new Array();
+                    tile.opacity = 1;
+                }  
             
             },2000);
 
@@ -2888,6 +2890,7 @@ function JigsawPuzzle(config) {
                     'closeButton': true
                 });
                 startTime = gameData.startTime;
+                instance.seq_num = gameData.seq_num || 1;
                 instance.maxSubGraphSize = gameData.maxSubGraphSize;
                 instance.steps = gameData.steps;
                 instance.realSteps = gameData.realSteps;
@@ -2908,6 +2911,7 @@ function JigsawPuzzle(config) {
         var gameData = data.gameData;
         if (gameData && gameData.round_id == roundID) {
             startTime = gameData.startTime;
+            instance.seq_num = gameData.seq_num || 1;
             instance.maxSubGraphSize = gameData.maxSubGraphSize;
             instance.steps = gameData.steps;
             instance.realSteps = gameData.realSteps;
@@ -2951,6 +2955,7 @@ function JigsawPuzzle(config) {
         var needIntro = !gameData.round_id;
         if (gameData.round_id == roundID) {
             startTime = gameData.startTime;
+            instance.seq_num = gameData.seq_num || 1;
             instance.maxSubGraphSize = gameData.maxSubGraphSize;
             instance.steps = gameData.steps;
             instance.realSteps = gameData.realSteps;
@@ -3022,6 +3027,7 @@ function JigsawPuzzle(config) {
                 //     'closeButton': true
                 // });
                 startTime = gameData.startTime;
+                instance.seq_num = gameData.seq_num || 1;
                 instance.maxSubGraphSize = gameData.maxSubGraphSize;
                 instance.steps = gameData.steps;
                 instance.realSteps = gameData.realSteps;

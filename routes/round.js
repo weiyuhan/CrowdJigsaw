@@ -413,8 +413,8 @@ module.exports = function (io) {
             socket.emit('isLock', {
                 username: data.username,
                 gameData: JSON.parse(save_game),
-                lock:islocked,
-                slockTileIndexes:lockedTileIndexes
+                lock: -1, //islocked,
+                slockTileIndexes: new Array(), //lockedTileIndexes
             });
         });
 
@@ -536,8 +536,9 @@ module.exports = function (io) {
         });
 
 
-        socket.on('share_saveGame', function (data) {
+        socket.on('share_saveGame', async function (data) {
             var save_game = {
+                seq_num: data.seq_num + 1,
                 round_id: data.round_id,
                 steps: data.steps,
                 realSteps: data.realSteps,
@@ -548,23 +549,22 @@ module.exports = function (io) {
                 totalHintsNum: data.totalHintsNum,
                 correctHintsNum: data.correctHintsNum
             };
+            console.log(save_game.round_id, data.player_name, save_game.seq_num);
             let redis_key = 'roundid:' + data.round_id + ':savegame';
-            redis.set(redis_key, JSON.stringify(save_game), function(err, response){
-                if (err) {
-                    console.log(err);
-                    socket.emit('gameSaved', { err: err });
-                } else {
-                    socket.emit('gameSaved', { 
-                        success: true, 
-                        round_id: data.round_id, 
-                        player_name: data.player_name
-                    });
-                    socket.broadcast.emit('updateSaveGame', {
-                        username: data.username,
-                        gameData: save_game
-                    });
-                }
-            });
+            let old_save_game = await redis.getAsync(redis_key);
+            old_save_game = JSON.parse(old_save_game);
+            if(!old_save_game || save_game.seq_num > old_save_game.seq_num) {
+                await redis.setAsync(redis_key, JSON.stringify(save_game));
+                socket.emit('gameSaved', { 
+                    success: true, 
+                    round_id: data.round_id, 
+                    player_name: data.player_name
+                });
+                socket.broadcast.emit('updateSaveGame', {
+                    username: data.player_name,
+                    gameData: save_game
+                });
+            }
         });
         /**
          * Load a game by one user
