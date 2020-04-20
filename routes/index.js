@@ -735,7 +735,6 @@ router.get('/logout', function (req, res) {
     req.session.user = null;
     req.session.error = null;
     //req.session.destroy();
-    console.log(req.headers.host + req.originalUrl);
     return res.redirect(`${dev.sso_server}logout?redirectUrl=${req.headers.host}`);
 });
 
