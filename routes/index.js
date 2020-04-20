@@ -199,6 +199,9 @@ router.route('/register').all(Logined).get(function (req, res) {
 
 //Home 
 router.route('/home').all(LoginFirst).get(function (req, res) {
+    if (!req.session.user) {
+        res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
+    }
     let selectStr = {
         username: req.session.user.username
     };
