@@ -10,6 +10,7 @@ var dev = require('../config/dev');
 var crypto = require('crypto');
 var util = require('./util.js');
 var PythonShell = require('python-shell');
+
 var url = require('url');
 var request = require('request');
 const redis = require('../redis');
@@ -43,10 +44,6 @@ router.route('/').all(LoginFirst).all(Logined).get(async function (req, res, nex
     if(!dev.multiPlayer){
 	   return res.redirect('/visitor');
     }
-    req.session.error = 'Welcome to Crowd Jigsaw Puzzle!';
-    res.render('index', {
-        title: 'Crowd Jigsaw Puzzle'
-    });
 });
 
 // Image proxy
@@ -64,53 +61,10 @@ router.get('/proxy', function (req, res) {
 
 // Login
 router.route('/login').all(Logined).get(function (req, res) {
-	if(!dev.multiPlayer){
+    if(!dev.multiPlayer){
        return res.redirect('/visitor');
     }
     res.render('login', { title: 'Login' });
-}).post(function (req, res) {
-
-    let passwd_enc = encrypt(req.body.password, SECRET);
-    let user = {
-        username: req.body.username,
-        password: passwd_enc
-    };
-
-    let condition = {
-        username: user.username
-    };
-    UserModel.findOne(condition, function (err, doc) {
-        if (err) {
-            console.log(err);
-        } else {
-            if (doc) {
-                if (doc.password === user.password) {
-                    // only save the username for safety
-                    req.session.user = condition;
-                    let time = util.getNowFormatDate();
-                    let operation = {
-                        $set: {
-                            last_online_time: time
-                        }
-                    };
-                    UserModel.update(condition, operation, function (err) {
-                        if (err) {
-                            console.log(err);
-                        } else {
-                            req.session.error = user.username + ', Welcome to Crowd Jigsaw!';
-                            return res.redirect('/home');
-                        }
-                    });
-                } else {
-                    req.session.error = 'Wrong username or password!';
-                    return res.redirect('/login');
-                }
-            } else {
-                req.session.error = 'Player does not exist!';
-                return res.redirect('/login');
-            }
-        }
-    });
 });
 
 /**
@@ -172,8 +126,6 @@ router.route('/visitor').get(function (req, res) {
     }
 });
 
-
-// Register
 router.route('/register').all(Logined).get(function (req, res) {
     res.render('register', {
         title: 'Register'
@@ -304,6 +256,47 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
                     final_user_score: new_final_user_score,
                     final_show_flag: final_show_flag,
                     final_ranking: ranking,
+                });
+            }else{
+                let index = req.session.user.userid;
+                //准备添加到数据库的数据（数组格式）
+                let operation = {
+                    userid: index,
+                    username: selectStr.username,
+                    last_online_time: util.getNowFormatDate(),
+                    register_time: util.getNowFormatDate()
+                };
+                UserModel.create(operation, async function (err) {
+                    if (err) {
+                        console.log(err);
+                    } else {
+                        let final_user_score = await redis.getAsync('final_user_score');
+                        final_user_score = final_user_score? JSON.parse(final_user_score): [];
+                        let final_class_score = await redis.getAsync('final_class_score');
+                        final_class_score = final_class_score? JSON.parse(final_class_score): [];
+                        let final_show_flag = await redis.getAsync('final_show_flag');
+                        final_show_flag = final_show_flag? true: false;
+                        let ranking = final_user_score.length;
+                        let new_final_user_score = [];
+                        let score = 0;
+                        req.session.error = 'Welcome! ' + req.session.user.username;
+                        res.render('playground', {
+                            title: 'Home',
+                            username: selectStr.username,
+                            admin: false,
+                            total_score: 0,
+                            round_attend: 0,
+                            after_class_score: 0,
+                            multiPlayer: dev.multiPlayer,
+                            multiPlayerServer: dev.multiPlayerServer,
+                            singlePlayerServer: dev.singlePlayerServer,
+                            normalPlayerCreateRound: dev.normalPlayerCreateRound,
+                            final_class_score: final_class_score,
+                            final_user_score: new_final_user_score,
+                            final_show_flag: final_show_flag,
+                            final_ranking: ranking,
+                        });
+                    }
                 });
             }
         }
@@ -710,7 +703,6 @@ router.route('/records').all(LoginFirst).get(function (req, res) {
                     console.log(err);
                 } else {
                     if (doc) {
-                        req.session.error = 'Welcome! ' + req.session.user.username;
                         res.render('records', {
                             title: 'Records',
                             username: req.session.user.username,
@@ -742,7 +734,8 @@ router.route('/help').all(LoginFirst).get(function (req, res) {
 router.get('/logout', function (req, res) {
     req.session.user = null;
     req.session.error = null;
-    return res.redirect('/login');
+    //req.session.destroy();
+    return res.redirect(`${dev.sso_server}logout?redirectUrl=${req.headers.host}`);
 });
 
 function Logined(req, res, next) {
@@ -756,9 +749,53 @@ function Logined(req, res, next) {
 
 function LoginFirst(req, res, next) {
     if (!req.session.user) {
-        req.session.error = 'Please Login First!';
-        return res.redirect('/login');
-        //return res.redirect('back');//返回之前的页面
+        /*
+         * 如果 session 中没有用户信息，则需要去 passport 系统进行身份认证。这里区分两种情况：
+         *
+         * 1. 如果 url 中带有 token 信息，则去 passport 中认证 token 的有效性，如果有效则说明登录成功，建立 session 开始通话。
+         * 2. 如果 url 中没有 token 信息，则取 passport 进行登录。如果登录成功，passport 会将浏览器重定向到此系统并在 url 上附带 token 信息。进行步骤 1。
+         *
+         * 因为 token 很容易伪造，所以需要去检验 token 的真伪，否则任何一个带有 token 的请求岂不是都可以通过认证。
+         */
+        let system = process.env.SERVER_NAME;
+        let token = req.query.token;
+        if (!token) {
+          res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`); 
+        } else {
+          request(
+            `${dev.sso_server}check_token?token=${token}`,
+             function (error, response, data) {
+              if (!error && response.statusCode === 200) {
+                data = JSON.parse(data);
+                if (data.error === 0) {
+                  let userName = data.username;
+                  let userID = data.userid;
+                  if (!userName) {
+                    res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
+                    return;
+                  }
+                  /*
+                   * 
+                   * 获取 userId 后，可以操作数据库获取用户的详细信息，用户名、权限等；这里也可以由 passport 直接返回 user 信息，主要看用户信息
+                   * 的数据库如何部署。
+                   * 为了方便，直接操作 userId，省略用户数据库操作。
+                   */
+                  let condition = {
+                      username: userName,
+                      userid:userID
+                    };
+                  req.session.user = condition;
+                  req.session.error = userName + ', Welcome to Crowd Jigsaw!';
+                  return res.redirect('/home');
+                } else {
+                  // token 验证失败，重新去 passport 登录。
+                  res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`)
+                }
+              } else {
+                res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
+              }
+            });
+        }
     }
     next();
 }
