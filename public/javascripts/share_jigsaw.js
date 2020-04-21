@@ -286,12 +286,6 @@ function onMouseDrag(event) {
     if(someonelock == 1){
         return;
     }
-    //socket.emit("tileDrag",{round_id: roundID,Delta: event.delta});
-    // if(someoneOp == 1){
-    //     return;
-    // }
-    var ca = document.getElementById("canvas");
-    ca.getContext("2d").clearRect(0, 0, ca.width, ca.height);
     mousedowned = true;
     if (timeoutFunction) {
         clearTimeout(timeoutFunction);
@@ -622,6 +616,10 @@ function JigsawPuzzle(config) {
             }
         }
         socket.emit('tileSelect',{round_id: roundID,username: player_name,selected_tiles:selectedTileIndexes});
+        instance.tileSelectTimeout = setTimeout(function () {
+            clearTimeout(instance.tileSelectTimeout);
+            instance.tileSelectTimeout = null;
+        }, 500);
         instance.selectedTile.length=0;
         return selectedTileIndexes;
     }
@@ -964,11 +962,8 @@ function JigsawPuzzle(config) {
         // randomly select tiles and place them one by one 
         for (var y = 0; y < yTileCount; y++) {
             for (var x = 0; x < xTileCount; x++) {
-                //Math.random() * 
-                var index1 = Math.floor(0.5*tileIndexes.length);
-                var index2 = tileIndexes[index1];
-                var tile = tiles[index2];
-                tileIndexes.remove(index1, 1);
+                var index1 = instance.randomSequence[y * xTileCount + x];
+                var tile = tiles[index1];
 
                 var position = view.center -
                     new Point(instance.tileWidth, instance.tileWidth / 2) +
@@ -2599,6 +2594,7 @@ function JigsawPuzzle(config) {
             if (!instance.selectedTile || !instance.selectedTile[0]) {
                 instance.selectedTile = null;
                 instance.draging = false;
+                return;
             }
             var centerPosition = instance.selectedTile[0].position;
             if (instance.selectedTile[0].differentColor.length > 0) {
@@ -2613,7 +2609,7 @@ function JigsawPuzzle(config) {
                 tile.position = centerPosition + tile.relativePosition * instance.tileWidth + delta;
             }
         }
-        else {
+        else if (!instance.tileSelectTimeout) {
             var currentScroll = view.currentScroll - delta * instance.currentZoom;
             view.scrollBy(currentScroll);
             view.currentScroll = currentScroll;
@@ -2751,6 +2747,7 @@ function JigsawPuzzle(config) {
         }
 
         socket.emit('share_saveGame', {
+            seq_num: instance.seq_num || 1,
             round_id: roundID,
             player_name: player_name,
             steps: instance.steps,
@@ -2766,6 +2763,8 @@ function JigsawPuzzle(config) {
 
     socket.on('isLock',function(data){
         console.log("lock:"+data.lock);
+        clearTimeout(instance.tileSelectTimeout);
+        instance.tileSelectTimeout = null;
         someonelock = data.lock;
         if(someonelock!=1){
             mousedowned = true;
@@ -2786,7 +2785,7 @@ function JigsawPuzzle(config) {
          var selectedTileIndexes = new Array();
             if(instance.selectedTile != null){
                 for (var i = 0; i < instance.selectedTile.length; i++) {
-                        selectedTileIndexes.push(getTileIndex(instance.selectedTile[i]));
+                    selectedTileIndexes.push(getTileIndex(instance.selectedTile[i]));
                 }
             }
             //console.log("aaaaaaaaaaaaa");
@@ -2801,6 +2800,7 @@ function JigsawPuzzle(config) {
             if (gameData.round_id == roundID) {
 
                 startTime = gameData.startTime;
+                instance.seq_num = gameData.seq_num || 1;
                 instance.maxSubGraphSize = gameData.maxSubGraphSize;
                 instance.steps = gameData.steps;
                 instance.realSteps = gameData.realSteps;
@@ -2822,11 +2822,10 @@ function JigsawPuzzle(config) {
                     for(var j = 0;j < selectedTileIndexes.length;j++){
                         if(tileIndex == selectedTileIndexes[j]){
                             isConflict = true;
-                            console.log("bbbbbbbbb");
                         }
                     }
                 }
-                if(!isConflict){
+                if(!isConflict && !tile.picking){
                     placeTile(tile, new Point(tilePos.x, tilePos.y));
                 }
                 tile.moved = false; // if one tile just clicked or actually moved(if moved, opacity=1)
@@ -2834,16 +2833,16 @@ function JigsawPuzzle(config) {
             }
             setTimeout(function(){
                 for(var i=0;i<data.slockTileIndexes.length;i++){
-                var tile = instance.tiles[data.slockTileIndexes[i]];
-                tile.topEdge.visible = false;
-                tile.rightEdge.visible = false;
-                tile.bottomEdge.visible = false;
-                tile.leftEdge.visible = false;
-                tile.colorBorder.visible = false;
-                tile.differentColor = new Array();
-                tile.colorDirection = new Array();
-                tile.opacity = 1;
-            }  
+                    var tile = instance.tiles[data.slockTileIndexes[i]];
+                    tile.topEdge.visible = false;
+                    tile.rightEdge.visible = false;
+                    tile.bottomEdge.visible = false;
+                    tile.leftEdge.visible = false;
+                    tile.colorBorder.visible = false;
+                    tile.differentColor = new Array();
+                    tile.colorDirection = new Array();
+                    tile.opacity = 1;
+                }  
             
             },2000);
 
@@ -2870,7 +2869,8 @@ function JigsawPuzzle(config) {
         //console.log("loadGame username:"+data.username);
         if (data.username == player_name) {
             if(!data.gameData){
-                console.log("nogameData:"+data.gameData);
+                console.log("nogameData", data);
+                instance.randomSequence = data.randomSeq;
                 createAndPlaceTiles(true);
                 return;
             }
@@ -2890,6 +2890,7 @@ function JigsawPuzzle(config) {
                     'closeButton': true
                 });
                 startTime = gameData.startTime;
+                instance.seq_num = gameData.seq_num || 1;
                 instance.maxSubGraphSize = gameData.maxSubGraphSize;
                 instance.steps = gameData.steps;
                 instance.realSteps = gameData.realSteps;
@@ -2903,67 +2904,87 @@ function JigsawPuzzle(config) {
             createAndPlaceTiles(needIntro);
         }
     });
-    socket.on('updateTiles', function (data) {
+    socket.on('updateSaveGame', function (data) {
         if (!instance.tiles) {
             return;
         }
-            var selectedTileIndexes = new Array();
-            if(instance.selectedTile != null){
-                for (var i = 0; i < instance.selectedTile.length; i++) {
-                        selectedTileIndexes.push(getTileIndex(instance.selectedTile[i]));
-                }
-            }
-            if(!data.gameData){
-                createAndPlaceTiles1(true);
-                console.log('updateTiles create tiles in reload');
-                return;
-            }
-            var gameData = data.gameData;
-            var needIntro = !gameData.round_id;
-            if (gameData.round_id == roundID) {
-                // $.amaran({
-                //     'title': 'reloadGame',
-                //     //'message': 'Progress reloaded.',
-                //     'inEffect': 'slideRight',
-                //     'cssanimationOut': 'zoomOutUp',
-                //     'position': "top right",
-                //     'delay': 2000,
-                //     'closeOnClick': true,
-                //     'closeButton': true
-                // });
-                startTime = gameData.startTime;
-                instance.maxSubGraphSize = gameData.maxSubGraphSize;
-                instance.steps = gameData.steps;
-                instance.realSteps = gameData.realSteps;
-                document.getElementById("steps").innerHTML = instance.realSteps;
-                instance.saveTilePositions = JSON.parse(gameData.tiles);
-                instance.saveHintedLinks = JSON.parse(gameData.tileHintedLinks);
-                totalHintsNum = gameData.totalHintsNum;
-                correctHintsNum = gameData.correctHintsNum;
-            } 
-            
-            console.log("updateTiles roundid:"+roundID);
-            
+        var gameData = data.gameData;
+        if (gameData && gameData.round_id == roundID) {
+            startTime = gameData.startTime;
+            instance.seq_num = gameData.seq_num || 1;
+            instance.maxSubGraphSize = gameData.maxSubGraphSize;
+            instance.steps = gameData.steps;
+            instance.realSteps = gameData.realSteps;
+            document.getElementById("steps").innerHTML = instance.realSteps;
+            instance.saveTilePositions = JSON.parse(gameData.tiles);
+            instance.saveHintedLinks = JSON.parse(gameData.tileHintedLinks);
+            totalHintsNum = gameData.totalHintsNum;
+            correctHintsNum = gameData.correctHintsNum;
             for (var i = 0; i < instance.saveTilePositions.length; i++) {
-                var isConflict = false;
                 var tilePos = instance.saveTilePositions[i];
                 var tile = instance.tiles[tilePos.index];
-                var tileIndex = getTileIndex(tile);
-                if(selectedTileIndexes.length!=0){
-                    for(var j = 0;j < selectedTileIndexes.length;j++){
-                        if(tileIndex == selectedTileIndexes[j]){
-                            isConflict = true;
-                            console.log("updateTiles aaaaa");
-                            //backConflictTile.push();
-                        }
-                    }
-                }
-                if(!isConflict){
+                if(!tile.picking){
                     placeTile(tile, new Point(tilePos.x, tilePos.y));
                 }
                 tile.moved = false; // if one tile just clicked or actually moved(if moved, opacity=1)
 
             }
+            if (!instance.gameFinished) {
+                var errors = checkTiles();
+                if (errors == 0) {
+                    finishGame();
+                }
+            }
+        } 
+    });
+    socket.on('updateTiles', function (data) {
+        if (!instance.tiles) {
+            return;
+        }
+        var selectedTileIndexes = new Array();
+        if(instance.selectedTile != null){
+            for (var i = 0; i < instance.selectedTile.length; i++) {
+                    selectedTileIndexes.push(getTileIndex(instance.selectedTile[i]));
+            }
+        }
+        if(!data.gameData){
+            createAndPlaceTiles1(true);
+            return;
+        }
+        var gameData = data.gameData;
+        var needIntro = !gameData.round_id;
+        if (gameData.round_id == roundID) {
+            startTime = gameData.startTime;
+            instance.seq_num = gameData.seq_num || 1;
+            instance.maxSubGraphSize = gameData.maxSubGraphSize;
+            instance.steps = gameData.steps;
+            instance.realSteps = gameData.realSteps;
+            document.getElementById("steps").innerHTML = instance.realSteps;
+            instance.saveTilePositions = JSON.parse(gameData.tiles);
+            instance.saveHintedLinks = JSON.parse(gameData.tileHintedLinks);
+            totalHintsNum = gameData.totalHintsNum;
+            correctHintsNum = gameData.correctHintsNum;
+        } 
+        
+        for (var i = 0; i < instance.saveTilePositions.length; i++) {
+            var isConflict = false;
+            var tilePos = instance.saveTilePositions[i];
+            var tile = instance.tiles[tilePos.index];
+            var tileIndex = getTileIndex(tile);
+            if(selectedTileIndexes.length!=0){
+                for(var j = 0;j < selectedTileIndexes.length;j++){
+                    if(tileIndex == selectedTileIndexes[j]){
+                        isConflict = true;
+                        //backConflictTile.push();
+                    }
+                }
+            }
+            if(!isConflict && !tile.picking){
+                placeTile(tile, new Point(tilePos.x, tilePos.y));
+            }
+            tile.moved = false; // if one tile just clicked or actually moved(if moved, opacity=1)
+
+        }
         puzzle.releaseTile();  
         mousedowned = false;
         someonelock = -1;
@@ -3006,6 +3027,7 @@ function JigsawPuzzle(config) {
                 //     'closeButton': true
                 // });
                 startTime = gameData.startTime;
+                instance.seq_num = gameData.seq_num || 1;
                 instance.maxSubGraphSize = gameData.maxSubGraphSize;
                 instance.steps = gameData.steps;
                 instance.realSteps = gameData.realSteps;

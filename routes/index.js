@@ -199,6 +199,9 @@ router.route('/register').all(Logined).get(function (req, res) {
 
 //Home 
 router.route('/home').all(LoginFirst).get(function (req, res) {
+    if (!req.session.user) {
+        return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
+    }
     let selectStr = {
         username: req.session.user.username
     };
@@ -766,34 +769,35 @@ function LoginFirst(req, res, next) {
             `${dev.sso_server}check_token?token=${token}`,
              function (error, response, data) {
               if (!error && response.statusCode === 200) {
-                    data = JSON.parse(data);
-                    if (data.error === 0) {
-                      let userName = data.username;
-                      let userID = data.userid;
-                      if (!userName) {
-                        return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
-                      }
-                      /*
-                       * 
-                       * 获取 userId 后，可以操作数据库获取用户的详细信息，用户名、权限等；这里也可以由 passport 直接返回 user 信息，主要看用户信息
-                       * 的数据库如何部署。
-                       * 为了方便，直接操作 userId，省略用户数据库操作。
-                       */
-                      let condition = {
-                          username: userName,
-                          userid:userID
-                        };
-                      req.session.user = condition;
-                      req.session.error = userName + ', Welcome to Crowd Jigsaw!';
-                      return res.redirect('/home');
-                    } else {
-                      // token 验证失败，重新去 passport 登录。
-                      return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`)
-                    }
-                } else {
+                data = JSON.parse(data);
+                if (data.error === 0) {
+                  let userName = data.username;
+                  let userID = data.userid;
+                  if (!userName) {
                     return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
+                  }
+                  /*
+                   * 
+                   * 获取 userId 后，可以操作数据库获取用户的详细信息，用户名、权限等；这里也可以由 passport 直接返回 user 信息，主要看用户信息
+                   * 的数据库如何部署。
+                   * 为了方便，直接操作 userId，省略用户数据库操作。
+                   */
+                  let condition = {
+                      username: userName,
+                      userid:userID
+                    };
+                  req.session.user = condition;
+                  req.session.error = userName + ', Welcome to Crowd Jigsaw!';
+                  return res.redirect('/home');
+                } else {
+                  // token 验证失败，重新去 passport 登录。
+                  return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`)
                 }
+              } else {
+                return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
+              }
             });
+            return;
         }
     }
     next();
