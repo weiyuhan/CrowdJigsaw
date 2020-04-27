@@ -788,7 +788,7 @@ function LoginFirst(req, res, next) {
                     };
                   req.session.user = condition;
                   req.session.error = userName + ', Welcome to Crowd Jigsaw!';
-                  return res.redirect('/home');
+                  next();
                 } else {
                   // token 验证失败，重新去 passport 登录。
                   return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`)
@@ -796,9 +796,9 @@ function LoginFirst(req, res, next) {
               } else {
                 return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
               }
-            });
-            return;
+            });  
         }
+        return;
     }
     next();
 }
