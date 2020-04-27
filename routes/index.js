@@ -200,7 +200,7 @@ router.route('/register').all(Logined).get(function (req, res) {
 //Home 
 router.route('/home').all(LoginFirst).get(function (req, res) {
     if (!req.session.user) {
-        res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
+        return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
     }
     let selectStr = {
         username: req.session.user.username
@@ -763,7 +763,7 @@ function LoginFirst(req, res, next) {
         let system = process.env.SERVER_NAME;
         let token = req.query.token;
         if (!token) {
-          res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`); 
+          return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`); 
         } else {
           request(
             `${dev.sso_server}check_token?token=${token}`,
@@ -774,8 +774,7 @@ function LoginFirst(req, res, next) {
                   let userName = data.username;
                   let userID = data.userid;
                   if (!userName) {
-                    res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
-                    return;
+                    return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
                   }
                   /*
                    * 
@@ -789,16 +788,17 @@ function LoginFirst(req, res, next) {
                     };
                   req.session.user = condition;
                   req.session.error = userName + ', Welcome to Crowd Jigsaw!';
-                  return res.redirect('/home');
+                  next();
                 } else {
                   // token 验证失败，重新去 passport 登录。
-                  res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`)
+                  return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`)
                 }
               } else {
-                res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
+                return res.redirect(`${dev.sso_server}login?redirectUrl=${req.headers.host + req.originalUrl}`);
               }
-            });
+            });  
         }
+        return;
     }
     next();
 }
