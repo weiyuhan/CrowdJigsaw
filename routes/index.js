@@ -721,6 +721,11 @@ router.route('/records').all(LoginFirst).get(function (req, res) {
     });
 });
 
+// Personal Records
+router.route('/demo').get(function (req, res) {
+    res.redirect('/demos/demo_4p.mp4');
+});
+
 // Help page
 router.route('/help').all(LoginFirst).get(function (req, res) {
     // TODO    

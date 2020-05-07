@@ -549,7 +549,6 @@ module.exports = function (io) {
                 totalHintsNum: data.totalHintsNum,
                 correctHintsNum: data.correctHintsNum
             };
-            console.log(save_game.round_id, data.player_name, save_game.seq_num);
             let redis_key = 'roundid:' + data.round_id + ':savegame';
             let old_save_game = await redis.getAsync(redis_key);
             old_save_game = JSON.parse(old_save_game);
