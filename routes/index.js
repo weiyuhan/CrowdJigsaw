@@ -261,43 +261,53 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
                     final_ranking: ranking,
                 });
             }else{
-                let index = req.session.user.userid;
-                //准备添加到数据库的数据（数组格式）
-                let operation = {
-                    userid: index,
-                    username: selectStr.username,
-                    last_online_time: util.getNowFormatDate(),
-                    register_time: util.getNowFormatDate()
-                };
-                UserModel.create(operation, async function (err) {
+                //查找pintu数据库的userid并以此为基础生成用户
+                UserModel.find({}, function (err, docs) {
                     if (err) {
-                        console.log(err);
+                            console.log(err);
                     } else {
-                        let final_user_score = await redis.getAsync('final_user_score');
-                        final_user_score = final_user_score? JSON.parse(final_user_score): [];
-                        let final_class_score = await redis.getAsync('final_class_score');
-                        final_class_score = final_class_score? JSON.parse(final_class_score): [];
-                        let final_show_flag = await redis.getAsync('final_show_flag');
-                        final_show_flag = final_show_flag? true: false;
-                        let ranking = final_user_score.length;
-                        let new_final_user_score = [];
-                        let score = 0;
-                        req.session.error = 'Welcome! ' + req.session.user.username;
-                        res.render('playground', {
-                            title: 'Home',
+                        let index = 0;
+                        if (docs) {
+                            index = docs.length > 0 ? docs[docs.length-1].userid + 1: docs.length;
+                        }
+                        //准备添加到数据库的数据（数组格式）
+                        let operation = {
+                            userid: index,
                             username: selectStr.username,
-                            admin: false,
-                            total_score: 0,
-                            round_attend: 0,
-                            after_class_score: 0,
-                            multiPlayer: dev.multiPlayer,
-                            multiPlayerServer: dev.multiPlayerServer,
-                            singlePlayerServer: dev.singlePlayerServer,
-                            normalPlayerCreateRound: dev.normalPlayerCreateRound,
-                            final_class_score: final_class_score,
-                            final_user_score: new_final_user_score,
-                            final_show_flag: final_show_flag,
-                            final_ranking: ranking,
+                            last_online_time: util.getNowFormatDate(),
+                            register_time: util.getNowFormatDate()
+                        };
+                        UserModel.create(operation, async function (err) {
+                            if (err) {
+                                console.log(err);
+                            } else {
+                                let final_user_score = await redis.getAsync('final_user_score');
+                                final_user_score = final_user_score? JSON.parse(final_user_score): [];
+                                let final_class_score = await redis.getAsync('final_class_score');
+                                final_class_score = final_class_score? JSON.parse(final_class_score): [];
+                                let final_show_flag = await redis.getAsync('final_show_flag');
+                                final_show_flag = final_show_flag? true: false;
+                                let ranking = final_user_score.length;
+                                let new_final_user_score = [];
+                                let score = 0;
+                                req.session.error = 'Welcome! ' + req.session.user.username;
+                                res.render('playground', {
+                                    title: 'Home',
+                                    username: selectStr.username,
+                                    admin: false,
+                                    total_score: 0,
+                                    round_attend: 0,
+                                    after_class_score: 0,
+                                    multiPlayer: dev.multiPlayer,
+                                    multiPlayerServer: dev.multiPlayerServer,
+                                    singlePlayerServer: dev.singlePlayerServer,
+                                    normalPlayerCreateRound: dev.normalPlayerCreateRound,
+                                    final_class_score: final_class_score,
+                                    final_user_score: new_final_user_score,
+                                    final_show_flag: final_show_flag,
+                                    final_ranking: ranking,
+                                });
+                            }
                         });
                     }
                 });
