@@ -721,7 +721,10 @@ router.route('/records').all(LoginFirst).get(function (req, res) {
 
 // Personal Records
 router.route('/demo').get(function (req, res) {
-    res.redirect('/demos/demo_4p.mp4');
+    res.render('demo', {
+        title: 'Demo',
+        username: req.session.user? req.session.user.username: '',
+    });
 });
 
 // Help page
