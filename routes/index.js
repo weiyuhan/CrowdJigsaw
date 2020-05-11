@@ -262,7 +262,6 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
                 });
             }else{
                 //准备添加到数据库的数据（数组格式）
-                //console.log("本地没数据，添加");
                 let operation = {
                     username: selectStr.username,
                     last_online_time: util.getNowFormatDate(),
