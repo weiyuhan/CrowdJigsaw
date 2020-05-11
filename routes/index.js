@@ -261,10 +261,8 @@ router.route('/home').all(LoginFirst).get(function (req, res) {
                     final_ranking: ranking,
                 });
             }else{
-                let index = req.session.user.userid;
                 //准备添加到数据库的数据（数组格式）
                 let operation = {
-                    userid: index,
                     username: selectStr.username,
                     last_online_time: util.getNowFormatDate(),
                     register_time: util.getNowFormatDate()
