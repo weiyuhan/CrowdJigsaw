@@ -421,7 +421,7 @@ function JigsawPuzzle(config) {
         if (data.username == player_name && data.round_id == roundID) {
             if(data.action == "quit"){
                 if(players_num == 1){
-                    console.log("randchanged",data.algorithm);
+                    //console.log("randchanged",data.algorithm);
                     if(data.algorithm=="shadow"){
                         socket.emit('stopUpdateHistory',{
                             algorithm:data.algorithm,
@@ -449,7 +449,7 @@ function JigsawPuzzle(config) {
         if (data.username == player_name && data.round_id == roundID) {
             if(data.action == "quit"){
                 if(players_num == 1){
-                    console.log("randchanged",data.algorithm);
+                    //console.log("randchanged",data.algorithm);
                     if(data.algorithm=="shadow"){
                         socket.emit('stopUpdateHistory',{
                             algorithm:data.algorithm,
