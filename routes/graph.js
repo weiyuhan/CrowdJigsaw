@@ -19,6 +19,15 @@ var updateGALock = {};
 var updateLock = {};
 var updateDistributeLock = {};
 
+var nowround_id = undefined;
+var history_round_id = undefined;
+var actionData = undefined;
+var isShadow = false;
+var history_imageURL=undefined;
+var startGetAction;
+var k=0;//记录历史action的第k个
+var preTime=0;
+var historyData= new Array();
 /**
  * Calculate the contribution according to the alpha decay function
  * num_before can be sup or opp
@@ -964,6 +973,75 @@ function getPlayersData(data) {
     });
 }
 
+
+//准备并获取动作日志
+function preGetAction(imageSrc, tilesPerRow){
+    //查询历史数据：1.是影子拼图模式,2.已完成
+    let condition = {
+        image: imageSrc,
+        tilesPerRow: tilesPerRow,
+        algorithm: 'shadow',
+        solved_players: {$gte: 1}
+    };
+    RoundModel.find(condition, function (err, doc) {
+        if (err) {
+            console.log(err);
+        } else {
+            if (doc && doc.length>0) {
+                history_round_id = doc[0].round_id;
+                let actionCondition={
+                    round_id: history_round_id
+                };
+                ActionModel.find(actionCondition,function(err,doc){
+                    if(err){
+                        console.log(err);
+                    }else{
+                        if(doc){
+                            actionData=doc;
+                        }
+                    }
+                });
+            }else{
+                history_round_id = undefined;
+            }
+        }
+    }).sort({round_id: -1});
+}
+
+//开始执行动作日志
+function getAction(actionData){
+    if(actionData){
+        console.log("actionData.length",actionData.length);
+        for(var i=0;i<actionData.length;i++){
+            historyData[i] = {
+                _id: undefined,
+                round_id: nowround_id,
+                player_name: actionData[i].player_name,
+                is_hint: actionData[i].is_hint,
+                edges: actionData[i].links_size,
+                time: actionData[i].time,
+                logs: 0
+            }
+        }
+        if(historyData.length>0){
+            preTime=historyData[k].time;
+            startGetAction = setInterval(updateHistory,historyData[k].time-preTime+100);
+        }
+    }
+}
+//同步更新action
+function updateHistory(){
+    if(k<historyData.length){
+        updateWrapper(historyData[k]);
+        preTime=historyData[k].time;
+        k=k+1;
+        clearInterval(startGetAction);
+        if(k<historyData.length){
+            startGetAction=setInterval(updateHistory,historyData[k].time-preTime+100);
+        }
+    }
+}
+
 module.exports = function (io) {
     io.on('connection', function (socket) {
         socket.on('uploadForGA', function (data) {
@@ -975,6 +1053,14 @@ module.exports = function (io) {
         });
 
         socket.on('upload', function (data) {
+            // console.log(isShadow,nowround_id,history_round_id);
+            //nowround_id确保第一次上传的时候为空，然后赋值，启动更新数据，之后再有upload消息则不执行这段
+            if(isShadow==true && nowround_id==undefined&& history_round_id!=undefined){
+                nowround_id=data.round_id;
+                // isRandomGame=false;
+                // console.log("execute shadow upload:",nowround_id);
+                getAction(actionData);
+            }
             updateWrapper(data);
         });
 
@@ -988,6 +1074,51 @@ module.exports = function (io) {
             });
         });
 
+        socket.on('getHisAction',function(data){
+            console.log("getHisAction isShadow:",data.algorithm);
+            if(data.algorithm=='shadow'){
+                isShadow=true;
+            }
+            //把之前的遍历都重置
+            nowround_id=undefined;//当前游戏id
+            history_round_id=undefined;//历史游戏id
+            clearInterval(startGetAction);//清除计时器
+            k=0;//
+            history_imageURL = data.imageURL;//获得前端选取的图片(若是random模式，这里为空)
+            //若不是影子模式或者没有图片路径则不查询历史数据
+            if(isShadow && history_imageURL!=undefined){
+                console.log("get HistoryData");
+                //查询历史数据。
+                preGetAction(data.imageURL, data.imageSize);
+            }
+        });
+
+        socket.on('randomGetAction',function(data){
+            console.log("randomGetAction isShadow:",data.algorithm);
+            if(data.algorithm=='shadow'){
+                isShadow=true;
+            }
+            //nowround_id=data.round_id;
+            nowround_id = undefined;
+            history_round_id=undefined;
+            clearInterval(startGetAction);
+            history_imageURL = data.imageURL;
+            k=0;
+            // isRandomGame=true;
+            if(isShadow && history_imageURL!=undefined){
+                // console.log("get random HistoryData nowround_id:",nowround_id);
+                preGetAction(data.imageURL, data.imageSize);
+            }
+        });
+        //
+        socket.on('stopUpdateHistory',function(data){
+            // console.log("stopUpdateHistory",data);
+            clearInterval(startGetAction);
+            nowround_id=undefined;
+            history_round_id=undefined;
+            isShadow=false;
+            k=0;
+        });
         // request global hints
         socket.on('fetchHints', function (data) {
             var hints = [];

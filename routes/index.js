@@ -584,6 +584,8 @@ router.route('/roundrank/:round_id').all(LoginFirst).get(async function (req, re
     let condition = {
         "round_id": req.params.round_id
     };
+    let thisRound_id=req.params.round_id;
+    let algorithm = "central";
     RecordModel.find(condition, async function (err, records) {
         if (err) {
             console.log(err);
@@ -603,6 +605,7 @@ router.route('/roundrank/:round_id').all(LoginFirst).get(async function (req, re
             }
             let round = JSON.parse(round_json);
             let start_time = Date.parse(round.start_time);
+            algorithm=round.algorithm;
             //console.log(round, round.tilesPerColumn, round.tilesPerRow);
             let puzzle_links = 2 * round.tilesPerColumn * round.tilesPerRow - round.tilesPerColumn - round.tilesPerRow;
             let finished = new Array();
@@ -662,16 +665,106 @@ router.route('/roundrank/:round_id').all(LoginFirst).get(async function (req, re
                     });
                 }
             }
-            finished = finished.sort(util.ascending("time"));
-            unfinished = unfinished.sort(util.descending("finishPercent"));
-            res.render('roundrank', {
-                title: 'Round Rank',
-                endTime: finished && finished.length > 0? finished[0].time: 3600,
-                Finished: finished,
-                Unfinished: unfinished,
-                username: req.session.user.username,
-                round_id: req.params.round_id
-            });
+            if(algorithm=='shadow'){
+                RoundModel.findOne(condition, function(err, doc) {
+                    if (err) {
+                        console.log(err);
+                    } else if (doc) {
+                        let hisCondition = {
+                            "image" : doc.image,
+                            "tilesPerRow" : doc.tilesPerRow,
+                            "algorithm" : "shadow",
+                            "solved_players": {$gte: 1}
+                        };
+                        //console.log(hisCondition);
+                        //查询历史最佳数据
+                        RoundModel.find(hisCondition, function(err, doc) {
+                            if (err) {
+                                console.log(err);
+
+                            } else if (doc) {
+                                //console.log("查询历史最佳数据");
+                                var roundArray = new Array();
+                                for(var i=0;i<doc.length;i++){
+                                    if(doc[i].round_id == thisRound_id){
+                                        continue;
+                                    }
+                                    roundArray.push(doc[i].round_id);
+                                }
+                                //console.log(roundArray);
+                                let hisRecordCon={
+                                    round_id:roundArray
+
+                                };
+                                RecordModel.find(hisRecordCon,function(err, doc){
+                                    if(err){
+                                        console.log(err);
+                                    }else{
+                                        //console.log("所有record：",doc);
+                                        if(doc && doc.length>0){
+                                            for(var i=0;i<doc.length;i++){
+                                                var hisBest = doc[i];
+                                                if(hisBest.end_time==-1){
+                                                    continue;
+                                                }
+                                                let hintPercent = 0;
+                                                let correctPercent = 0;
+                                                let finishPercent = 0;
+                                                if (hisBest.hinted_steps != -1 && hisBest.total_steps != -1 && hisBest.total_steps > 0 && hisBest.hinted_steps > 0) {
+                                                    hintPercent = hisBest.hinted_steps / hisBest.total_steps * 100;
+                                                }
+                                                if (hisBest.total_hints > 0 && hisBest.correct_hints != -1 && hintPercent > 0) {
+                                                    correctPercent = hisBest.correct_hints / hisBest.total_hints * 100;
+                                                }
+                                                if (hisBest.total_links > 0 && hisBest.correct_links != -1) {
+                                                    finishPercent = (hisBest.correct_links / 2) / puzzle_links * 100;
+                                                }
+                                                finished.push({
+                                                "playername": "history-"+hisBest.username,
+                                                "time": hisBest.time,
+                                                "steps": hisBest.steps,
+                                                "hintPercent": hintPercent.toFixed(3),
+                                                "finishPercent": finishPercent.toFixed(3),
+                                                "correctPercent": correctPercent.toFixed(3),
+                                                "rating": hisBest.rating,
+                                                "score": hisBest.score,
+                                                "create_correct_link": hisBest.create_correct_link,
+                                                "remove_correct_link": hisBest.remove_correct_link,
+                                                "create_wrong_link": hisBest.create_wrong_link,
+                                                "remove_wrong_link": hisBest.remove_wrong_link,
+                                                "remove_hinted_wrong_link": hisBest.remove_hinted_wrong_link
+                                                });
+
+                                            }
+                                        }
+                                    }
+                                    finished = finished.sort(util.ascending("time"));
+                                    unfinished = unfinished.sort(util.descending("finishPercent"));
+                                    res.render('roundrank', {
+                                        title: 'Round Rank',
+                                        endTime: finished && finished.length > 0? finished[0].time: 3600,
+                                        Finished: finished,
+                                        Unfinished: unfinished,
+                                        username: req.session.user.username,
+                                        round_id: req.params.round_id
+                                    });
+                                }).sort({time:1});
+                            }
+                        });
+                    }
+                });
+            }else{
+                finished = finished.sort(util.ascending("time"));
+                unfinished = unfinished.sort(util.descending("finishPercent"));
+                res.render('roundrank', {
+                    title: 'Round Rank',
+                    endTime: finished && finished.length > 0? finished[0].time: 3600,
+                    Finished: finished,
+                    Unfinished: unfinished,
+                    username: req.session.user.username,
+                    round_id: req.params.round_id
+                });
+            }
         }
     });
 });

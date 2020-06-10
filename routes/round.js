@@ -171,6 +171,12 @@ module.exports = function (io) {
                             return;
                         }
                         imageSrc = randomUrl[0];
+                        //imageSrc = "images/raw/ping&swimming_10x10.jpg"测试用
+                        data.imageURL = imageSrc;  
+                        //data.imageURL="images/raw/ping&swimming_10x10.jpg";测试用
+                        data.round_id=docs_size;
+                        //console.log('emit getRandomImageUrl');
+                        socket.emit('getImageUrl',data);
                         data.outsideImage = false;
                     }
                     let index = docs_size;
@@ -249,7 +255,8 @@ module.exports = function (io) {
                                 round_id: doc.round_id,
                                 action: "create",
                                 title: "CreateRound",
-                                msg: 'You just create and join round' + doc.round_id
+                                msg: 'You just create and join round' + doc.round_id,
+                                algorithm: doc.algorithm
                             });
                         }
                     });
@@ -367,7 +374,8 @@ module.exports = function (io) {
                                     round_id: data.round_id,
                                     action: "quit",
                                     title: "StopRound",
-                                    msg: 'You just stop round' + data.round_id
+                                    msg: 'You just stop round' + data.round_id,
+                                    algorithm: doc.algorithm
                                 });
                                 let redis_key = 'round:' + data.round_id;
                                 await redis.setAsync(redis_key, JSON.stringify(doc));
@@ -674,7 +682,8 @@ module.exports = function (io) {
                                             round_id: data.round_id,
                                             action: "start",
                                             title: "StartRound",
-                                            msg: 'You just start round' + data.round_id
+                                            msg: 'You just start round' + data.round_id,
+                                            algorithm: doc.algorithm
                                         });
                                         let redis_key = 'round:' + doc.round_id;
                                         await redis.setAsync(redis_key, JSON.stringify(doc));

@@ -19,7 +19,7 @@ function wasmWorkerInit() {
     };
 }
 wasmWorkerInit();
-
+var isStopUpdateHistory = false;//用来控制向服务器发送停止上传数据的flag，相当于一个开关
 var wasmTimeoutID = null;
 
 
@@ -364,6 +364,14 @@ function JigsawPuzzle(config) {
     var instance = this; // the current object(which calls the function)
     socket.on('someoneSolved', function (data) {
         if (data.round_id == roundID) {
+            if(data.algorithm=="shadow"&&!isStopUpdateHistory){
+                isStopUpdateHistory=true;
+                socket.emit('stopUpdateHistory',{
+                    algorithm:data.algorithm,
+                    someonSolved:true,
+                    player_name: player_name
+                });
+            }
             $.amaran({
                 'title': 'someoneSolved',
                 'message': 'Someone has solved the puzzle!',
@@ -413,6 +421,14 @@ function JigsawPuzzle(config) {
         if (data.username == player_name && data.round_id == roundID) {
             if(data.action == "quit"){
                 if(players_num == 1){
+                    //console.log("randchanged",data.algorithm);
+                    if(data.algorithm=="shadow"){
+                        socket.emit('stopUpdateHistory',{
+                            algorithm:data.algorithm,
+                            someonSolved: false,
+                            player_name: player_name
+                        });
+                    }
                     window.location = '/home';
                 }
                 else{
@@ -433,6 +449,14 @@ function JigsawPuzzle(config) {
         if (data.username == player_name && data.round_id == roundID) {
             if(data.action == "quit"){
                 if(players_num == 1){
+                    //console.log("randchanged",data.algorithm);
+                    if(data.algorithm=="shadow"){
+                        socket.emit('stopUpdateHistory',{
+                            algorithm:data.algorithm,
+                            someonSolved:false,
+                            player_name: player_name
+                        });
+                    }
                     window.location = '/home';
                 }
                 else{
